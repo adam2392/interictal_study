@@ -1,0 +1,97 @@
+language: python
+
+matrix:
+    include:
+        # Linux
+        - os: linux
+          env: CONDA_ENV="environment.yml"
+               MNE_VERSION="master"
+          name: "Linux conda full"
+
+python:
+  - "3.6"
+  - "3.7"
+
+node_js:
+  - "10.16.1"
+
+env:
+  - CODECOV_TOKEN="9538c495-e2de-4fd9-a351-ce7f21e55f52"
+  # Specify version of BIDS-validator to be used, 'master', or 'stable'
+  global:
+    # can be "stable", or anything that can be used with git checkout
+    - VALIDATOR_VERSION="347117838f2b929e"
+
+# add npm for bids-validator
+before_install:
+  - if [ "${TRAVIS_OS_NAME}" == "linux" ]; then
+        wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b -p ${HOME}/miniconda
+  - export PATH=${HOME}/miniconda/bin:$PATH
+  - conda update --yes --quiet conda
+  - npm install -g npm stable
+  - npm install -g node@10.16.1 --force
+  - npm --version
+  - node --version
+  - yarn --version
+
+# command to install dependencies
+install:
+  # run installation of bids-validator
+  - echo $PATH
+  - |
+    if [ $VALIDATOR_VERSION == 'stable' ];then
+      npm install -g bids-validator
+    else
+      pushd ~
+      git clone https://github.com/bids-standard/bids-validator
+      cd bids-validator
+      git checkout $VALIDATOR_VERSION
+      yarn
+      export PATH=~/bids-validator/bids-validator/bin:$PATH
+      popd
+    fi
+  - echo $PATH
+  - bids-validator --version
+  - which bids-validator
+  # commands to get Miniconda3 setup
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda info -a
+  - conda env create -f $CONDA_ENV --name=testenv
+#  - conda create -q -n eztrack python=$TRAVIS_PYTHON_VERSION numpy scipy scikit-learn pandas openpyxl
+  - source activate testenv
+  # run conda /pip installation of packages
+#  - conda config --add channels conda-forge
+#  - conda config --add channels bioconda
+#  - conda config --add channels aramislab
+#  - conda install matplotlib seaborn  # for visualization
+#  - conda install mne mne-bids natsort xlrd deprecated tqdm pybv pybids  # for basic analysis
+#  - conda install snakemake dask  # for pipelines /airflow
+#  - pip install eegio  # misc.
+  - pip install autoreject pyprep pyautomagic  # for scalp EEG
+  # install packages for testing
+  - conda install pytest pylint flake8 black check-manifest pydocstyle codespell
+  - pip install codecov pytest-cov
+
+cache:
+    - pip
+    - yarn
+
+# command to run tests
+script:
+  - make check
+  - pytest --cov=./tests
+# run cli test
+  - make install-cli
+  - ez
+  - ez pat-summary
+  - ez metadata
+  - codecov --token=CODECOV_TOKEN
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

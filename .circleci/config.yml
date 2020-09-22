@@ -1,0 +1,129 @@
+version: 2.1
+orbs:
+  codecov: codecov/codecov@1.0.5
+  node: circleci/node@3.0.1
+jobs:
+    build:
+        docker:
+            - image: circleci/python:3.7.3-stretch
+        environment:
+          CODECOV_TOKEN: "9538c495-e2de-4fd9-a351-ce7f21e55f52"
+        steps:
+            - checkout
+
+            - run:
+                name: Check environment.yml and doc/environment.yml syncing
+                # doc/environment.yml must be a perfect copy of environment.yml
+                # with a single line "  - eztracks~=0.unformatted_X" added in the pip section
+                command: diff <(grep -v '^  - eztrack~=0.1.0$' environment.yml) <(cat environment.yml)
+
+            # restore cache from last build. Unless __init__.py has changed since then
+            - restore_cache:
+                keys:
+                  - data-cache-0-{{ checksum "./eztrack/__init__.py" }}
+
+            # Also restore pip cache to speed up installations
+            - restore_cache:
+                keys:
+                  - pip-cache-0-{{ checksum "./environment.yml" }}
+
+#            - run:
+#                name: Install miniconda
+#                command: |
+#                  wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh;
+#                  chmod +x ~/miniconda.sh;
+#                  ~/miniconda.sh -b -p ~/miniconda;
+#                  echo "export PATH=~/miniconda/bin:$PATH" >> $BASH_ENV;
+
+#            - node/install:
+#                name: "Update Node.js and npm"
+#                install-yarn: true
+#                node-version: latest
+#            - run: node --version
+#            - run:
+#                command: |
+#                  curl -sSL "https://nodejs.org/dist/v11.10.0/node-v11.10.0-linux-x64.tar.xz" | sudo tar --strip-components=2 -xJ -C /usr/local/bin/ node-v11.10.0-linux-x64/bin/node
+#                  curl https://www.npmjs.com/install.sh | sudo bash
+#            - run:
+#                name: Check current version of node
+#                command: |
+#                  node -v
+#                  npm --version
+#            - run:
+#                name: Install bids_validator
+#                command: |
+#                  npm install node@10.16.1 --force
+#                  npm --version
+#                  node --version
+#                  yarn --version
+
+            - run:
+                name: Setup Python environment via Pipenv
+                # ... but use latest version of EZTrack
+                command: |
+                  pipenv install
+
+            - run:
+                name: Setup Python environment via Setup
+                # ... but use latest version of EZTrack
+                command: |
+                  conda env create --name=testenv
+                  source activate testenv
+                  make inplace
+                  # dev versions of mne-python, mne-bids
+                  pip install --upgrade --no-deps https://api.github.com/repos/mne-tools/mne-python/zipball/master
+                  pip install --upgrade https://api.github.com/repos/mne-tools/mne-bids/zipball/master
+                  pip install sphinx sphinx-gallery sphinx_bootstrap_theme numpydoc black pytest pytest-cov coverage codespell pydocstyle
+
+            - run:
+                name: Run unit and integration tests
+                command: |
+                  source activate testenv
+                  make check
+                  pytest --cov=eztrack ./tests/ --cov-report=xml --cov-config=setup.cfg --verbose
+
+            - store_artifacts:
+                path: ./coverage.xml
+
+            - run:
+                name: Upload codecov report
+                command: |
+                  bash <(curl -s https://codecov.io/bash)
+
+            - run:
+                name: Build the documentation
+                command: |
+                    source activate testenv
+                    make build-doc
+
+            - store_artifacts:
+                path: doc/_build/html/
+                destination: html
+
+            # Store pip cache
+            - save_cache:
+                key: pip-cache-0-{{ checksum "./environment.yml" }}
+                paths:
+                  - ~/.cache/pip
+
+            - add_ssh_keys:
+                fingerprints:
+                  - "fd:39:54:fd:e0:85:47:67:c3:ef:e8:8d:99:30:f0:79"
+
+            - deploy:
+                name: github pages deployment
+                command: |
+                  source activate testenv
+                  if [ "${CIRCLE_BRANCH}" == "maint/0.3" ]; then
+                    echo "Deploying stable docs for ${CIRCLE_BRANCH}.";
+                    git config --global user.email "circle@neurologic.solutions.com";
+                    git config --global user.name "Circle Ci";
+                    cd doc;
+                    make install;
+                  else
+                    echo "No deployment (build: ${CIRCLE_BRANCH}).";
+                  fi
+
+            - store_test_results:
+                path: doc/test-results
+

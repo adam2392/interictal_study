@@ -1,0 +1,148 @@
+from pathlib import Path
+
+from eztrack import (
+    preprocess_raw,
+    lds_raw_fragility,
+    write_result_fragility,
+    plot_result_heatmap,
+)
+from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
+
+
+def run_analysis(
+    bids_path, reference="monopolar", deriv_path=None, figures_path=None, verbose=True, overwrite=False,
+):
+    subject = bids_path.subject
+
+    # set where to save the data output to
+    if deriv_path is None:
+        deriv_path = 
+            bids_path.root
+            / "derivatives"
+            / "1000Hz"
+            / "fragility"
+            / reference
+            / f"sub-{subject}"
+
+    if figures_path is None:
+        figures_path = 
+            bids_path.root
+            / "derivatives"
+            / "figures"
+            / "1000Hz"
+            / "fragility"
+            / reference
+            / f"sub-{subject}"
+
+    # use the same basename to save the data
+    deriv_basename = bids_path.basename
+
+    if len(list(deriv_path.rglob(f'{deriv_basename}*.npy'))) == 1 and not overwrite:
+        raise RuntimeError(f'The {deriv_basename}.npy exists, but overwrite if False.')
+
+    # load in the data
+    raw = read_raw_bids(bids_path)
+    raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
+    raw.load_data()
+
+    # pre-process the data using preprocess pipeline
+    datatype = bids_path.datatype
+    print('Power Line frequency is : ', raw.info["line_freq"])
+    raw = preprocess_raw(raw, datatype=datatype,
+                         verbose=verbose, method="simple")
+    print(f"Analyzing {raw} with {len(raw.ch_names)} channels.")
+
+    # raise Exception('hi')
+    model_params = {
+        "winsize": 500,
+        "stepsize": 250,
+        "radius": 1.5,
+        "method_to_use": "pinv",
+    }
+    # run heatmap
+    result, A_mats, delta_vecs_arr = lds_raw_fragility(
+        raw, reference=reference, return_all=True, **model_params
+    )
+
+    # write results to
+    result_sidecars = write_result_fragility(
+        A_mats,
+        delta_vecs_arr,
+        result=result,
+        deriv_basename=deriv_basename,
+        deriv_path=deriv_path,
+        verbose=verbose,
+    )
+    fig_basename = deriv_basename
+
+    result.normalize()
+    # create the heatmap
+    plot_result_heatmap(
+        result=result,
+        fig_basename=fig_basename,
+        figures_path=figures_path,
+    )
+
+
+if __name__ == "__main__":
+    # the root of the BIDS dataset
+    root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+
+    # define BIDS entities
+    SUBJECTS = [
+        'pt1', 'pt2', 'pt3',  # NIH
+        'jh103', 'jh105',  # JHH
+        # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
+        # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
+        # 'la07'
+    ]
+
+    session = "presurgery"  # only one session
+
+    # pre, Sz, Extraoperative, post
+    task = "interictal"
+    acquisition = "ecog"
+    datatype = "ieeg"
+    extension = ".vhdr"
+
+    # analysis parameters
+    reference = 'average'
+
+    # get the runs for this subject
+    subjects = get_entity_vals(root, "subject")
+
+    for subject in subjects:
+        if subject not in SUBJECTS:
+            continue
+        ignore_subs = [sub for sub in subjects if sub != subject]
+        all_tasks = get_entity_vals(root, "this_task", ignore_subjects=ignore_subs)
+        tasks = all_tasks
+        tasks = [this_task]
+
+        for this_task in tasks:
+            print(f"Analyzing {this_task} task.")
+            ignore_tasks = [tsk for tsk in all_tasks if tsk != this_task]
+            runs = get_entity_vals(
+                root, 'run', ignore_subjects=ignore_subs,
+                ignore_tasks=ignore_tasks
+            )
+            print(ignore_subs)
+            print(ignore_tasks)
+            print(f'Found {runs} runs for {this_task} task.')
+
+            for idx, run in enumerate(runs):
+                # create path for the dataset
+                bids_path = BIDSPath(
+                    subject=subject,
+                    session=session,
+                    this_task=this_task,
+                    run=run,
+                    datatype=datatype,
+                    acquisition=acquisition,
+                    suffix=datatype,
+                    root=root,
+                    extension=extension,
+                )
+                print(f"Analyzing {bids_path}")
+
+                run_analysis(bids_path, reference=reference)
