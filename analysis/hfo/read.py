@@ -126,7 +126,7 @@ def _get_bids_path(fname):
                          run=run)
 
 if __name__ == '__main__':
-    deriv_root = Path('/home/adam2392/hdd/Dropbox/hfo_data/hfo_mat_results/mat')
+    deriv_root = Path('/home/adam2392/hdd2/derivatives/hfo')
 
     for fpath in deriv_root.glob('*.mat'):
         hfo_dict = read_hfo_data(fpath)
