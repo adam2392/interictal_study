@@ -10,29 +10,28 @@ from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 
 
 def run_analysis(
-    bids_path, reference="monopolar", deriv_path=None, figures_path=None, verbose=True, overwrite=False,
+        bids_path, reference="monopolar", deriv_path=None,
+        figures_path=None, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
 
     # set where to save the data output to
     if deriv_path is None:
-        deriv_path = 
-            bids_path.root
-            / "derivatives"
-            / "1000Hz"
-            / "fragility"
-            / reference
-            / f"sub-{subject}"
+        deriv_path = (bids_path.root
+                      / "derivatives"
+                      / "1000Hz"
+                      / "fragility"
+                      / reference
+                      / f"sub-{subject}")
 
     if figures_path is None:
-        figures_path = 
-            bids_path.root
-            / "derivatives"
-            / "figures"
-            / "1000Hz"
-            / "fragility"
-            / reference
-            / f"sub-{subject}"
+        figures_path = (bids_path.root
+                        / "derivatives"
+                        / "figures"
+                        / "1000Hz"
+                        / "fragility"
+                        / reference
+                        / f"sub-{subject}")
 
     # use the same basename to save the data
     deriv_basename = bids_path.basename
@@ -98,51 +97,45 @@ if __name__ == "__main__":
     ]
 
     session = "presurgery"  # only one session
-
-    # pre, Sz, Extraoperative, post
     task = "interictal"
-    acquisition = "ecog"
     datatype = "ieeg"
+    acquisition = "ecog"  # or SEEG
     extension = ".vhdr"
 
     # analysis parameters
     reference = 'average'
 
     # get the runs for this subject
-    subjects = get_entity_vals(root, "subject")
+    all_subjects = get_entity_vals(root, "subject")
 
-    for subject in subjects:
+    for subject in all_subjects:
         if subject not in SUBJECTS:
             continue
-        ignore_subs = [sub for sub in subjects if sub != subject]
-        all_tasks = get_entity_vals(root, "this_task", ignore_subjects=ignore_subs)
-        tasks = all_tasks
-        tasks = [this_task]
+        ignore_subs = [sub for sub in all_subjects if sub != subject]
+        all_tasks = get_entity_vals(root, "task", ignore_subjects=ignore_subs)
+        ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
 
-        for this_task in tasks:
-            print(f"Analyzing {this_task} task.")
-            ignore_tasks = [tsk for tsk in all_tasks if tsk != this_task]
-            runs = get_entity_vals(
-                root, 'run', ignore_subjects=ignore_subs,
-                ignore_tasks=ignore_tasks
+        print(f"Analyzing {task} task.")
+        ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
+        runs = get_entity_vals(
+            root, 'run', ignore_subjects=ignore_subs,
+            ignore_tasks=ignore_tasks
+        )
+        print(f'Found {runs} runs for {task} task.')
+
+        for idx, run in enumerate(runs):
+            # create path for the dataset
+            bids_path = BIDSPath(
+                subject=subject,
+                session=session,
+                task=task,
+                run=run,
+                datatype=datatype,
+                acquisition=acquisition,
+                suffix=datatype,
+                root=root,
+                extension=extension,
             )
-            print(ignore_subs)
-            print(ignore_tasks)
-            print(f'Found {runs} runs for {this_task} task.')
+            print(f"Analyzing {bids_path}")
 
-            for idx, run in enumerate(runs):
-                # create path for the dataset
-                bids_path = BIDSPath(
-                    subject=subject,
-                    session=session,
-                    this_task=this_task,
-                    run=run,
-                    datatype=datatype,
-                    acquisition=acquisition,
-                    suffix=datatype,
-                    root=root,
-                    extension=extension,
-                )
-                print(f"Analyzing {bids_path}")
-
-                run_analysis(bids_path, reference=reference)
+            run_analysis(bids_path, reference=reference)

@@ -10,7 +10,7 @@ pydocstyle = "*"
 [packages]
 zipp = {editable = true, path = "/Users/adam2392/Documents/eztrack"}
 mne-bids = {file = "https://api.github.com/repos/mne-tools/mne-bids/zipball/master"}
-mne = {file = "https://api.github.com/repos/mne-tools/mne-python/zipball/master"}
+mne = ">=0.21"
 
 [requires]
 python_version = "3.8"
