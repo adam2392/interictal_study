@@ -7,11 +7,12 @@ from eztrack import (
     plot_result_heatmap,
 )
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
+from mne.utils import warn
 
 
 def run_analysis(
         bids_path, reference="monopolar", resample_sfreq=None, deriv_path=None,
-        figures_path=None, verbose=True, overwrite=False,
+        figures_path=None, excel_fpath=None, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
 
@@ -57,9 +58,12 @@ def run_analysis(
 
     # use the same basename to save the data
     deriv_basename = bids_path.basename
-
-    if len(list(deriv_path.rglob(f'{deriv_basename}*.npy'))) == 1 and not overwrite:
-        raise RuntimeError(f'The {deriv_basename}.npy exists, but overwrite if False.')
+    bids_entities = bids_path.entities
+    deriv_basename_nosuffix = BIDSPath(**bids_entities).basename
+    print(deriv_basename_nosuffix)
+    if len(list(deriv_path.rglob(f'{deriv_basename_nosuffix}*.npy'))) > 0 and not overwrite:
+        warn(f'The {deriv_basename}.npy exists, but overwrite if False.')
+        return
 
     # pre-process the data using preprocess pipeline
     datatype = bids_path.datatype
@@ -107,6 +111,7 @@ def run_analysis(
         result=result,
         fig_basename=fig_basename,
         figures_path=figures_path,
+        excel_fpath=excel_fpath
     )
 
 
@@ -138,39 +143,40 @@ if __name__ == "__main__":
         figures_dir = output_dir / 'figures'
 
     # define BIDS entities
-    SUBJECTS = [
-        'pt1', 'pt2', 'pt3',  # NIH
-        'jh103', 'jh105',  # JHH
-        'umf001', 'umf002', 'umf003', 'umf005', 'umf004' # UMF
+    # SUBJECTS = [
+        # 'pt1', 'pt2', 'pt3',  # NIH
+        # 'jh103', 'jh105',  # JHH
+        # 'umf001', 'umf002', 'umf003', 'umf005', # UMF
         # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
         # 'la07'
-    ]
+    # ]
 
     session = "presurgery"  # only one session
     task = "interictal"
     datatype = "ieeg"
-    acquisition = "ecog"  # or SEEG
+    acquisition = "seeg"  # or SEEG
     extension = ".vhdr"
 
     # analysis parameters
-    reference = 'average'
+    reference = 'monopolar'
     sfreq = None  # either resample or don't
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
 
     for subject in all_subjects:
-        if subject not in SUBJECTS:
-            continue
+        # if subject not in SUBJECTS:
+        #     continue
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(root, "task", ignore_subjects=ignore_subs)
         ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
 
-        print(f"Analyzing {task} task.")
+        print(f"Analyzing {task} task for {subject}.")
         ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
         runs = get_entity_vals(
             root, 'run', ignore_subjects=ignore_subs,
-            ignore_tasks=ignore_tasks
+            ignore_tasks=ignore_tasks,
+            ignore_acquisitions=['ecog']
         )
         print(f'Found {runs} runs for {task} task.')
 
@@ -191,5 +197,7 @@ if __name__ == "__main__":
 
             run_analysis(bids_path, reference=reference,
                          resample_sfreq=sfreq,
-                         deriv_path=output_dir, figures_path=figures_dir
+                         deriv_path=output_dir, figures_path=figures_dir,
+                         excel_fpath=excel_fpath,
+                         overwrite=False
                          )
