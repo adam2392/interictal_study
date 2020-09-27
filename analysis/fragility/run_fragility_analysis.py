@@ -10,28 +10,50 @@ from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 
 
 def run_analysis(
-        bids_path, reference="monopolar", deriv_path=None,
+        bids_path, reference="monopolar", resample_sfreq=None, deriv_path=None,
         figures_path=None, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
 
-    # set where to save the data output to
-    if deriv_path is None:
-        deriv_path = (bids_path.root
-                      / "derivatives"
-                      / "1000Hz"
-                      / "fragility"
-                      / reference
-                      / f"sub-{subject}")
+    # load in the data
+    raw = read_raw_bids(bids_path)
+    raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
+    raw.load_data()
 
+    if resample_sfreq:
+        # perform resampling
+        raw = raw.resample(resample_sfreq, n_jobs=-1)
+
+    if deriv_path is None:
+        deriv_path = (
+                bids_path.root
+                / "derivatives"
+        )
+    deriv_path = (deriv_path
+                  # /  'nodepth'
+                  / f"{int(raw.info['sfreq'])}Hz"
+                  / "fragility"
+                  / reference
+                  / f"sub-{subject}")
+    # set where to save the data output to
     if figures_path is None:
-        figures_path = (bids_path.root
-                        / "derivatives"
-                        / "figures"
-                        / "1000Hz"
-                        / "fragility"
-                        / reference
-                        / f"sub-{subject}")
+        figures_path = (
+                bids_path.root
+                / "derivatives"
+                / "figures"
+        )
+    figures_path = (figures_path
+                    # / 'nodepth'
+                    / f"{int(raw.info['sfreq'])}Hz"
+                    / "fragility"
+                    / reference
+                    / f"sub-{subject}")
+    deriv_root = (root / 'derivatives' / "figures"
+                  # /'nodepth' \
+                  / f"{int(raw.info['sfreq'])}Hz" \
+                  / "raw" \
+                  / reference \
+                  / f"sub-{subject}")
 
     # use the same basename to save the data
     deriv_basename = bids_path.basename
@@ -39,22 +61,27 @@ def run_analysis(
     if len(list(deriv_path.rglob(f'{deriv_basename}*.npy'))) == 1 and not overwrite:
         raise RuntimeError(f'The {deriv_basename}.npy exists, but overwrite if False.')
 
-    # load in the data
-    raw = read_raw_bids(bids_path)
-    raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-    raw.load_data()
-
     # pre-process the data using preprocess pipeline
     datatype = bids_path.datatype
     print('Power Line frequency is : ', raw.info["line_freq"])
     raw = preprocess_raw(raw, datatype=datatype,
-                         verbose=verbose, method="simple")
-    print(f"Analyzing {raw} with {len(raw.ch_names)} channels.")
+                         verbose=verbose, method="simple", drop_chs=False)
+
+    # plot raw data
+    deriv_root.mkdir(exist_ok=True, parents=True)
+    fig_basename = bids_path.copy().update(extension='.pdf').basename
+    scale = 200e-6
+    fig = raw.plot(
+        scalings={
+            'ecog': scale,
+            'seeg': scale
+        }, n_channels=len(raw.ch_names))
+    fig.savefig(deriv_root / fig_basename)
 
     # raise Exception('hi')
     model_params = {
-        "winsize": 500,
-        "stepsize": 250,
+        "winsize": 250,
+        "stepsize": 125,
         "radius": 1.5,
         "method_to_use": "pinv",
     }
@@ -84,14 +111,37 @@ def run_analysis(
 
 
 if __name__ == "__main__":
-    # the root of the BIDS dataset
-    root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+    WORKSTATION = "lab"
+
+    if WORKSTATION == "home":
+        # bids root to write BIDS data to
+        # the root of the BIDS dataset
+        root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+        output_dir = root / 'derivatives'
+
+        figures_dir = output_dir / 'figures'
+
+        # path to excel layout file - would be changed to the datasheet locally
+        excel_fpath = Path(
+            "/Users/adam2392/Dropbox/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
+        )
+    elif WORKSTATION == "lab":
+        root = Path("/home/adam2392/hdd/epilepsy_bids/")
+        excel_fpath = Path(
+            "/home/adam2392/hdd/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
+        )
+
+        # output directory
+        output_dir = Path("/home/adam2392/hdd2") / 'derivatives'
+
+        # figures directory
+        figures_dir = output_dir / 'figures'
 
     # define BIDS entities
     SUBJECTS = [
         'pt1', 'pt2', 'pt3',  # NIH
         'jh103', 'jh105',  # JHH
-        # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
+        'umf001', 'umf002', 'umf003', 'umf005', 'umf004' # UMF
         # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
         # 'la07'
     ]
@@ -104,6 +154,7 @@ if __name__ == "__main__":
 
     # analysis parameters
     reference = 'average'
+    sfreq = None  # either resample or don't
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
@@ -138,4 +189,7 @@ if __name__ == "__main__":
             )
             print(f"Analyzing {bids_path}")
 
-            run_analysis(bids_path, reference=reference)
+            run_analysis(bids_path, reference=reference,
+                         resample_sfreq=sfreq,
+                         deriv_path=output_dir, figures_path=figures_dir
+                         )
