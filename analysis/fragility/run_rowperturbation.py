@@ -1,11 +1,13 @@
 from pathlib import Path
 
 from eztrack import (
-    preprocess_raw,
-    lds_raw_fragility,
-    write_result_fragility,
     plot_result_heatmap,
+read_result_eztrack,
+Result
 )
+from eztrack.io.base import _add_desc_to_bids_fname, DERIVATIVETYPES
+from eztrack.fragility.fragility import state_perturbation_array
+from eztrack.io.write_result import write_result_array
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 from mne.utils import warn
 
@@ -15,15 +17,11 @@ def run_analysis(
         figures_path=None, excel_fpath=None, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
+    datatype = bids_path.datatype
 
     # load in the data
-    raw = read_raw_bids(bids_path, verbose=False)
+    raw = read_raw_bids(bids_path)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-    raw.load_data()
-
-    if resample_sfreq:
-        # perform resampling
-        raw = raw.resample(resample_sfreq, n_jobs=-1)
 
     if deriv_path is None:
         deriv_path = (
@@ -31,7 +29,6 @@ def run_analysis(
                 / "derivatives"
         )
     deriv_path = (deriv_path
-                  # /  'nodepth'
                   / f"{int(raw.info['sfreq'])}Hz"
                   / "fragility"
                   / reference
@@ -43,70 +40,55 @@ def run_analysis(
                 / "derivatives"
                 / "figures"
         )
-    deriv_root = (figures_path
-                  # /'nodepth' \
-                  / f"{int(raw.info['sfreq'])}Hz" \
-                  / "raw" \
-                  / reference \
-                  / f"sub-{subject}")
     figures_path = (figures_path
-                    # / 'nodepth'
                     / f"{int(raw.info['sfreq'])}Hz"
                     / "fragility"
                     / reference
                     / f"sub-{subject}")
 
-
     # use the same basename to save the data
     deriv_basename = bids_path.basename
-    bids_entities = bids_path.entities
-    deriv_basename_nosuffix = BIDSPath(**bids_entities).basename
-    print(deriv_basename_nosuffix)
-    if len(list(deriv_path.rglob(f'{deriv_basename_nosuffix}*.npy'))) > 0 and not overwrite:
+    deriv_basename = _add_desc_to_bids_fname(
+        deriv_basename, description=DERIVATIVETYPES.ROWPERTURB_MATRIX.value, verbose=False
+    )
+    deriv_fpath = deriv_path / deriv_basename
+    if deriv_fpath.exists() and not overwrite:
         warn(f'The {deriv_basename}.npy exists, but overwrite if False.')
         return
 
-    # pre-process the data using preprocess pipeline
-    datatype = bids_path.datatype
-    print('Power Line frequency is : ', raw.info["line_freq"])
-    raw = preprocess_raw(raw, datatype=datatype,
-                         verbose=verbose, method="simple", drop_chs=False)
+    # write results to
+    source_entities = bids_path.entities
+    raw_basename = BIDSPath(**source_entities).basename
+    deriv_fname = list(deriv_path.glob(f'{raw_basename}*rowperturbmatrix*'))
+    if len(deriv_fname) > 0:
+        deriv_fname = deriv_fname[0]
 
-    # plot raw data
-    deriv_root.mkdir(exist_ok=True, parents=True)
-    fig_basename = bids_path.copy().update(extension='.pdf').basename
-    scale = 200e-6
-    fig = raw.plot(
-        decim=10,
-        scalings={
-            'ecog': scale,
-            'seeg': scale
-        }, n_channels=len(raw.ch_names))
-    fig.savefig(deriv_root / fig_basename)
-
-    # raise Exception('hi')
-    model_params = {
-        "winsize": 250,
-        "stepsize": 125,
-        "radius": 1.5,
-        "method_to_use": "pinv",
-        'perturb_type': 'R',
-    }
-    # run heatmap
-    result, A_mats, delta_vecs_arr = lds_raw_fragility(
-        raw, reference=reference, return_all=True, **model_params
-    )
+    deriv_fname = list(deriv_path.glob(f'{raw_basename}*statematrix*'))[0]
+    state_arr, result_info, metadata = read_result_eztrack(deriv_fname=deriv_fname,
+                                 description='statematrix',
+                                 normalize=False)
+    # run row perturbation
+    radius = 1.5
+    perturb_type = 'R'
+    pert_mats, delta_vecs_arr = state_perturbation_array(state_arr,
+                                                         radius=radius,
+                                                         perturb_type=perturb_type,
+                                                         n_jobs=-1)
 
     # write results to
-    result_sidecars = write_result_fragility(
-        A_mats,
-        delta_vecs_arr,
-        result=result,
-        deriv_basename=deriv_basename,
-        deriv_path=deriv_path,
+    pert_sidecar = write_result_array(
+        pert_mats,
+        metadata=metadata,
+        deriv_fpath=deriv_fpath,
         verbose=verbose,
     )
-    fig_basename = deriv_basename
+    result = Result(pert_mats, raw.info, metadata=metadata)
+
+    # deriv_fname = deriv_path / bids_path.basename
+    # fig_basename = deriv_basename
+    # result = read_result_eztrack(deriv_fname=deriv_fname,
+    #                              description='rowperturbmatrix',
+    #                              normalize=False)
 
     result.normalize()
     # create the heatmap
@@ -114,12 +96,13 @@ def run_analysis(
         result=result,
         fig_basename=fig_basename,
         figures_path=figures_path,
-        excel_fpath=excel_fpath
+        excel_fpath=excel_fpath,
+        show_soz=True
     )
 
 
 if __name__ == "__main__":
-    WORKSTATION = "lab"
+    WORKSTATION = "home"
 
     if WORKSTATION == "home":
         # bids root to write BIDS data to
@@ -140,18 +123,16 @@ if __name__ == "__main__":
         )
 
         # output directory
-        output_dir = Path("/home/adam2392/hdd/epilepsy_bids") / 'derivatives' / 'interictal'
+        output_dir = Path("/home/adam2392/hdd2") / 'derivatives' / 'interictal'
 
         # figures directory
         figures_dir = output_dir / 'figures'
 
     # define BIDS entities
     # SUBJECTS = [
-        # 'pt1', 'pt2', 'pt3',  # NIH
-        # 'jh103', 'jh105',  # JHH
-        # 'umf001', 'umf002', 'umf003', 'umf005', # UMF
-        # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
-        # 'la07'
+    #     # 'pt1', 'pt2', 'pt3',  # NIH
+    #     'jh103', 'jh105',  # JHH
+    #     # 'umf001', 'umf002', 'umf003', 'umf005', # UMF
     # ]
 
     session = "presurgery"  # only one session
@@ -165,6 +146,7 @@ if __name__ == "__main__":
     elif acquisition == 'seeg':
         ignore_acquisitions = ['ecog']
 
+    # analysis parameters
     reference = 'monopolar'
     sfreq = None  # either resample or don't
 
