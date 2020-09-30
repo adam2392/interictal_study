@@ -17,7 +17,7 @@ def run_analysis(
     subject = bids_path.subject
 
     # load in the data
-    raw = read_raw_bids(bids_path)
+    raw = read_raw_bids(bids_path, verbose=False)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
     raw.load_data()
 
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         # bids root to write BIDS data to
         # the root of the BIDS dataset
         root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-        output_dir = root / 'derivatives'
+        output_dir = root / 'derivatives' / 'interictal'
 
         figures_dir = output_dir / 'figures'
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         )
 
         # output directory
-        output_dir = Path("/home/adam2392/hdd2") / 'derivatives' / 'interictal'
+        output_dir = Path("/home/adam2392/hdd/epilepsy_bids") / 'derivatives' / 'interictal'
 
         # figures directory
         figures_dir = output_dir / 'figures'
@@ -156,12 +156,17 @@ if __name__ == "__main__":
     session = "presurgery"  # only one session
     task = "interictal"
     datatype = "ieeg"
-    acquisition = "seeg"  # or SEEG
+    acquisition = "ecog"  # or SEEG
     extension = ".vhdr"
+
+    if acquisition == 'ecog':
+        ignore_acquisitions = ['seeg']
+    elif acquisition == 'seeg':
+        ignore_acquisitions = ['ecog']
 
     # analysis parameters
     reference = 'monopolar'
-    sfreq = 500  # either resample or don't
+    sfreq = None  # either resample or don't
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
@@ -178,7 +183,7 @@ if __name__ == "__main__":
         runs = get_entity_vals(
             root, 'run', ignore_subjects=ignore_subs,
             ignore_tasks=ignore_tasks,
-            ignore_acquisitions=['ecog']
+            ignore_acquisitions=ignore_acquisitions
         )
         print(f'Found {runs} runs for {task} task.')
 
