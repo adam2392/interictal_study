@@ -90,7 +90,6 @@ def run_analysis(
         "stepsize": 125,
         "radius": 1.5,
         "method_to_use": "pinv",
-        'perturb_type': 'R',
     }
     # run heatmap
     result, A_mats, delta_vecs_arr = lds_raw_fragility(
@@ -119,13 +118,13 @@ def run_analysis(
 
 
 if __name__ == "__main__":
-    WORKSTATION = "home"
+    WORKSTATION = "lab"
 
     if WORKSTATION == "home":
         # bids root to write BIDS data to
         # the root of the BIDS dataset
         root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-        output_dir = root / 'derivatives' / 'interictal'
+        output_dir = root / 'derivatives'
 
         figures_dir = output_dir / 'figures'
 
@@ -157,15 +156,10 @@ if __name__ == "__main__":
     session = "presurgery"  # only one session
     task = "interictal"
     datatype = "ieeg"
-    acquisition = "ecog"  # or SEEG
+    acquisition = "seeg"  # or SEEG
     extension = ".vhdr"
 
-    if acquisition == 'ecog':
-        ignore_acquisitions = ['seeg']
-    elif acquisition == 'seeg':
-        ignore_acquisitions = ['ecog']
-
-        # analysis parameters
+    # analysis parameters
     reference = 'monopolar'
     sfreq = 500  # either resample or don't
 
@@ -184,7 +178,7 @@ if __name__ == "__main__":
         runs = get_entity_vals(
             root, 'run', ignore_subjects=ignore_subs,
             ignore_tasks=ignore_tasks,
-            ignore_acquisitions=ignore_acquisitions
+            ignore_acquisitions=['ecog']
         )
         print(f'Found {runs} runs for {task} task.')
 
