@@ -233,3 +233,4 @@ def _channel_text_scrub(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
     raw = raw.rename_channels(lambda x: _reformatchanlabel(x))
 
     return raw
+

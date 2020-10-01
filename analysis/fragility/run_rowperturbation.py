@@ -23,6 +23,10 @@ def run_analysis(
     raw = read_raw_bids(bids_path)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
 
+    if resample_sfreq:
+        # perform resampling
+        raw = raw.resample(resample_sfreq, n_jobs=-1)
+
     if deriv_path is None:
         deriv_path = (
                 bids_path.root
@@ -85,7 +89,7 @@ def run_analysis(
     result = Result(pert_mats, raw.info, metadata=metadata)
 
     # deriv_fname = deriv_path / bids_path.basename
-    # fig_basename = deriv_basename
+    fig_basename = deriv_basename
     # result = read_result_eztrack(deriv_fname=deriv_fname,
     #                              description='rowperturbmatrix',
     #                              normalize=False)

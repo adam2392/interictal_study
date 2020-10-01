@@ -10,7 +10,7 @@ import collections
 import mne
 from mne.io import read_raw_edf
 from mne.utils import warn
-from mne_bids import write_raw_bids, read_raw_bids, get_anonymization_daysback
+from mne_bids import write_raw_bids, read_raw_bids, get_anonymization_daysback, mark_bad_channels
 from mne_bids.path import (BIDSPath, get_entities_from_fname,
                            _find_matching_sidecar, _parse_ext,
                            get_entity_vals)
@@ -18,6 +18,8 @@ from mne_bids.tsv_handler import _from_tsv, _to_tsv
 from analysis.bids.utils import (_replace_ext, BadChannelDescription,
                                  _channel_text_scrub, _check_bids_parameters,
                                  _look_for_bad_channels, _update_sidecar_tsv_byname)
+from eztrack.preprocess.excel import (add_subject_metadata_from_excel, annotate_chs_from_excel)
+
 
 def append_original_fname_to_scans(
         orig_fname: str,
@@ -377,10 +379,19 @@ if __name__ == "__main__":
         root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_bids/")
         source_dir = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_bids/sourcedata")
 
+        root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+        source_dir = Path("/Users/adam2392/Dropbox/epilepsy_bids/sourcedata")
+
+        # path to excel layout file - would be changed to the datasheet locally
+        excel_fpath = Path(
+            "/Users/adam2392/Dropbox/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
+        )
     elif WORKSTATION == "lab":
         root = Path("/home/adam2392/hdd2/epilepsy_bids/")
         source_dir = Path("/home/adam2392/hdd2/epilepsy_bids/sourcedata")
-
+        excel_fpath = Path(
+            "/home/adam2392/hdd2/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
+        )
     # define BIDS identifiers
     modality = "ecog"
     task = "interictal"
@@ -392,7 +403,7 @@ if __name__ == "__main__":
     SUBJECTS = [
         # 'pt1',
         # 'pt2', 'pt3',
-        # 'pt6',
+        'pt6',
         'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
         # 'jh103', 'jh105',  # JHH
         # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
@@ -406,7 +417,7 @@ if __name__ == "__main__":
         source_folder = source_dir / 'nih' / '092920_interictal_data' / subject
         print(source_folder)
         search_str = f'*.edf'
-        filepaths = source_folder.rglob(search_str)
+        filepaths = list(source_folder.rglob(search_str))
 
         subjects = get_entity_vals(root, 'subject')
         ignore_subjects = [sub for sub in subjects if sub != subject]
@@ -415,6 +426,7 @@ if __name__ == "__main__":
                                ignore_tasks=['ictal'])
         runs = [int(run) for run in runs]
 
+        print(f'Found these filepaths {list(filepaths)}')
         for run_id, fpath in enumerate(filepaths):
             # subject = fpath.name.split('_')[0]
             # if subject not in subject_ids:
@@ -422,10 +434,10 @@ if __name__ == "__main__":
             #     continue
 
             # get the next available run
-            if runs:
-                run_id = max(runs) + 1
-            else:
-                run_id = run_id + 1
+            # if runs:
+            #     run_id = max(runs) + 1
+            # else:
+            run_id = run_id + 1
 
             bids_kwargs = {
                 'subject': subject,
@@ -436,8 +448,7 @@ if __name__ == "__main__":
                 'datatype': datatype,
                 'suffix': datatype,
             }
-            print(bids_kwargs
-                  )
+            print(f'Bids kwargs: {bids_kwargs}')
             # run main bids conversion
             output_dict = write_edf_to_bids(edf_fpath=fpath,
                                             bids_kwargs=bids_kwargs,
@@ -449,6 +460,15 @@ if __name__ == "__main__":
                 fpath.name, root, bids_fname
             )
 
-            bids_path = BIDSPath(**bids_kwargs, root=root)
-            print(bids_path.fpath)
-            raw = read_raw_bids(bids_path)
+            # bids_path = BIDSPath(**bids_kwargs, root=root)
+            # print(bids_path.fpath)
+            # raw = read_raw_bids(bids_path)
+
+    # append metadata to all subjects and their tsv files
+    all_subjects = get_entity_vals(root, 'subject')
+    all_subjects = [
+        'pt6', 'pt7', 'pt8', 'pt10', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15'
+    ]
+    for subject in all_subjects:
+        add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
+        annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)

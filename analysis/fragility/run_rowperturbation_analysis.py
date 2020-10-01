@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     # analysis parameters
     reference = 'monopolar'
-    sfreq = 500  # either resample or don't
+    sfreq = None  # either resample or don't
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")

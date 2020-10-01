@@ -4,15 +4,18 @@ from eztrack import (
     preprocess_raw,
     lds_raw_fragility,
     write_result_fragility,
-    plot_result_heatmap,
+    plot_result_heatmap, Result
 )
+from eztrack.io.write_result import write_result_array
+from eztrack.io.base import _add_desc_to_bids_fname, DERIVATIVETYPES
+from eztrack.fragility.fragility import state_perturbation_array
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 from mne.utils import warn
 
 
 def run_analysis(
         bids_path, reference="monopolar", resample_sfreq=None, deriv_path=None,
-        figures_path=None, excel_fpath=None, verbose=True, overwrite=False,
+        figures_path=None, excel_fpath=None, perturb_row=True, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
 
@@ -73,16 +76,16 @@ def run_analysis(
                          verbose=verbose, method="simple", drop_chs=False)
 
     # plot raw data
-    deriv_root.mkdir(exist_ok=True, parents=True)
-    fig_basename = bids_path.copy().update(extension='.pdf').basename
-    scale = 200e-6
-    fig = raw.plot(
-        decim=10,
-        scalings={
-            'ecog': scale,
-            'seeg': scale
-        }, n_channels=len(raw.ch_names))
-    fig.savefig(deriv_root / fig_basename)
+    # deriv_root.mkdir(exist_ok=True, parents=True)
+    # fig_basename = bids_path.copy().update(extension='.pdf').basename
+    # scale = 200e-6
+    # fig = raw.plot(
+    #     decim=10,
+    #     scalings={
+    #         'ecog': scale,
+    #         'seeg': scale
+    #     }, n_channels=len(raw.ch_names))
+    # fig.savefig(deriv_root / fig_basename)
 
     # raise Exception('hi')
     model_params = {
@@ -90,7 +93,7 @@ def run_analysis(
         "stepsize": 125,
         "radius": 1.5,
         "method_to_use": "pinv",
-        'perturb_type': 'R',
+        'perturb_type': 'C',
     }
     # run heatmap
     result, A_mats, delta_vecs_arr = lds_raw_fragility(
@@ -117,9 +120,49 @@ def run_analysis(
         excel_fpath=excel_fpath
     )
 
+    if perturb_row:
+        perturb_type = 'R'
+        radius = 1.5
+        metadata = result.get_metadata()
+        deriv_basename = bids_path.basename
+        deriv_basename = _add_desc_to_bids_fname(
+            deriv_basename, description=DERIVATIVETYPES.ROWPERTURB_MATRIX.value, verbose=False
+        )
+        deriv_fpath = deriv_path / deriv_basename
+
+        pert_mats, delta_vecs_arr = state_perturbation_array(A_mats,
+                                                             radius=radius,
+                                                             perturb_type=perturb_type,
+                                                             n_jobs=-1)
+
+        # write results to
+        pert_sidecar = write_result_array(
+            pert_mats,
+            metadata=metadata,
+            deriv_fpath=deriv_fpath,
+            verbose=verbose,
+        )
+        result = Result(pert_mats, raw.info, metadata=metadata)
+
+        # deriv_fname = deriv_path / bids_path.basename
+        fig_basename = deriv_basename
+        # result = read_result_eztrack(deriv_fname=deriv_fname,
+        #                              description='rowperturbmatrix',
+        #                              normalize=False)
+
+        result.normalize()
+        # create the heatmap
+        plot_result_heatmap(
+            result=result,
+            fig_basename=fig_basename,
+            figures_path=figures_path,
+            excel_fpath=excel_fpath,
+            show_soz=True
+        )
+
 
 if __name__ == "__main__":
-    WORKSTATION = "lab"
+    WORKSTATION = "home"
 
     if WORKSTATION == "home":
         # bids root to write BIDS data to
@@ -146,13 +189,16 @@ if __name__ == "__main__":
         figures_dir = output_dir / 'figures'
 
     # define BIDS entities
-    # SUBJECTS = [
-        # 'pt1', 'pt2', 'pt3',  # NIH
+    SUBJECTS = [
+        # 'pt1',
+        # 'pt2', 'pt3',
+        'pt6',
+        'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
         # 'jh103', 'jh105',  # JHH
-        # 'umf001', 'umf002', 'umf003', 'umf005', # UMF
+        # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
         # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
         # 'la07'
-    # ]
+    ]
 
     session = "presurgery"  # only one session
     task = "interictal"
@@ -172,8 +218,8 @@ if __name__ == "__main__":
     all_subjects = get_entity_vals(root, "subject")
 
     for subject in all_subjects:
-        # if subject not in SUBJECTS:
-        #     continue
+        if subject not in SUBJECTS:
+            continue
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(root, "task", ignore_subjects=ignore_subs)
         ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
@@ -206,5 +252,5 @@ if __name__ == "__main__":
                          resample_sfreq=sfreq,
                          deriv_path=output_dir, figures_path=figures_dir,
                          excel_fpath=excel_fpath,
-                         overwrite=False
+                         overwrite=True
                          )

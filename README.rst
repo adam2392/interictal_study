@@ -43,3 +43,14 @@ Setup environment from pipenv
 
    # if dev versions are needed
    pipenv install https://api.github.com/repos/mne-tools/mne-bids/zipball/master
+
+Setup Jupyter Kernel To Test
+============================
+
+You need to install ipykernel to expose your environment to jupyter notebooks.
+
+.. code-block::
+
+   python -m ipykernel install --name  --user
+   # now you can run jupyter lab and select a kernel
+   jupyter lab
