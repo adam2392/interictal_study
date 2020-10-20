@@ -37,7 +37,7 @@ joblib = ">=0.15"
 matplotlib = "*"
 seaborn = "*"
 black = "*"
-eztrack = {editable = true, path = "/home/adam2392/Documents/eztrack"}
+zipp = {editable = true, path = "/Users/adam2392/Documents/eztrack"}
 
 [requires]
 python_version = "3.8"

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Union, List
 import collections
 import mne
+import numpy as np
 from mne.io import read_raw_edf
 from mne.utils import warn
 from mne_bids import write_raw_bids, read_raw_bids, get_anonymization_daysback, mark_bad_channels
@@ -15,9 +16,9 @@ from mne_bids.path import (BIDSPath, get_entities_from_fname,
                            _find_matching_sidecar, _parse_ext,
                            get_entity_vals)
 from mne_bids.tsv_handler import _from_tsv, _to_tsv
-from analysis.bids.utils import (_replace_ext, BadChannelDescription,
-                                 _channel_text_scrub, _check_bids_parameters,
-                                 _look_for_bad_channels, _update_sidecar_tsv_byname)
+from ezinterictal.bids.utils import (_replace_ext, BadChannelDescription,
+                                     _channel_text_scrub, _check_bids_parameters,
+                                     _look_for_bad_channels, _update_sidecar_tsv_byname)
 from eztrack.preprocess.excel import (add_subject_metadata_from_excel, annotate_chs_from_excel)
 
 
@@ -50,7 +51,7 @@ def append_original_fname_to_scans(
 
     # find scans.tsv sidecar
     scans_fpath = _find_matching_sidecar(
-        bids_path, suffix="scans.tsv", on_fail='ignore'
+        bids_path, suffix="scans.tsv", on_error='ignore'
     )
     scans_tsv = _from_tsv(scans_fpath)
 
@@ -285,7 +286,7 @@ def _modify_raw_with_json(raw: mne.io.BaseRaw,
 
 def write_edf_to_bids(edf_fpath: [str, Path],
                       bids_kwargs: Dict, bids_root: [str, Path],
-                      line_freq: int = 60) -> Dict:
+                      line_freq: int = 60, datatype: str=None) -> Dict:
     """Write EDF (.edf) files to BIDS format.
 
     This will convert files to BrainVision (.vhdr, .vmrk, .eeg) data format
@@ -319,17 +320,27 @@ def write_edf_to_bids(edf_fpath: [str, Path],
     # load in EDF file
     raw = read_raw_edf(edf_fpath)
 
+    nan_indx = np.argwhere(np.isnan(raw.get_data()))
+    if nan_indx.any():
+        print(nan_indx)
+        print(len(nan_indx))
+
     # set channel types
     # resected_chs = _set_ch_types(raw, entities.get('subject'),
     #                              entities.get('session'))
-    raw.set_channel_types({ch: 'ecog' for ch in raw.ch_names})
+    if datatype is None:
+        datatype = 'ecog'
+    raw.set_channel_types({ch: datatype for ch in raw.ch_names})
 
     # channel text scrub
     raw = _channel_text_scrub(raw)
 
     # look for bad channels
-    bad_chs = _look_for_bad_channels(raw.ch_names)
+    bad_chs = _look_for_bad_channels(raw.ch_names, datatype=datatype)
     raw.info['bads'].extend(bad_chs)
+
+    if entities['subject'] == 'pt11' and datatype != 'eeg':
+        raw.info['bads'].extend(['RLG12-0', 'RLG12-1', 'RIPS4-0', 'RIPS4-1',])
 
     # set line freq
     raw.info['line_freq'] = line_freq
@@ -343,13 +354,14 @@ def write_edf_to_bids(edf_fpath: [str, Path],
     anonymize = dict(daysback=0, keep_his=False)
 
     # write to BIDS based on path
+    print(F'HERE ARE THE RAW UNITS: {raw._orig_units}')
     output_bids_path = write_raw_bids(raw, bids_path=bids_path,
                                       anonymize=anonymize,
                                       overwrite=True, verbose=False)
 
     # add resected channels to description
-    channels_tsv_fname = output_bids_path.copy().update(suffix='channels',
-                                                        extension='.tsv')
+    # channels_tsv_fname = output_bids_path.copy().update(suffix='channels',
+    #                                                     extension='.tsv')
 
     # update which channels were resected
     # for ch in resected_chs:
@@ -393,18 +405,23 @@ if __name__ == "__main__":
             "/home/adam2392/hdd2/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
         )
     # define BIDS identifiers
-    modality = "ecog"
-    task = "interictal"
+    modality = "eeg"
+    task = "ictal"
     session = "presurgery"
-    datatype = 'ieeg'
+    datatype = 'eeg'
     extension = ".vhdr"
 
     # define BIDS entities
     SUBJECTS = [
-        # 'pt1',
-        # 'pt2', 'pt3',
+        'pt1',
+        # 'pt2',
+        'pt3',
         'pt6',
-        'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
+        'pt7', 'pt8',
+        # 'pt9',
+        'pt11',
+        # 'la09',
+        'pt12', 'pt13', 'pt14', 'pt15', 'pt16', 'pt17', # NIH
         # 'jh103', 'jh105',  # JHH
         # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
         # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
@@ -414,8 +431,9 @@ if __name__ == "__main__":
 
     # regex pattern for the files is:
     for subject in SUBJECTS:
-        source_folder = source_dir / 'nih' / '092920_interictal_data' / subject
+        source_folder = source_dir / 'nih' / subject / 'scalp'
         print(source_folder)
+        search_str = f'*Inter_with_P_3.edf'
         search_str = f'*.edf'
         filepaths = list(source_folder.rglob(search_str))
 
@@ -423,9 +441,10 @@ if __name__ == "__main__":
         ignore_subjects = [sub for sub in subjects if sub != subject]
         runs = get_entity_vals(root, 'run',
                                ignore_subjects=ignore_subjects,
-                               ignore_tasks=['ictal'])
+                               ignore_modalities=['ieeg'])
         runs = [int(run) for run in runs]
-
+        runs = []
+        print(runs)
         print(f'Found these filepaths {list(filepaths)}')
         for run_id, fpath in enumerate(filepaths):
             # subject = fpath.name.split('_')[0]
@@ -434,10 +453,10 @@ if __name__ == "__main__":
             #     continue
 
             # get the next available run
-            # if runs:
-            #     run_id = max(runs) + 1
-            # else:
-            run_id = run_id + 1
+            if runs:
+                run_id = max(runs) + 1
+            else:
+                run_id = run_id + 1
 
             bids_kwargs = {
                 'subject': subject,
@@ -452,7 +471,8 @@ if __name__ == "__main__":
             # run main bids conversion
             output_dict = write_edf_to_bids(edf_fpath=fpath,
                                             bids_kwargs=bids_kwargs,
-                                            bids_root=root, line_freq=60)
+                                            bids_root=root, line_freq=60,
+                                            datatype=datatype)
             bids_fname = output_dict['output_fname']
 
             # append scans original filenames
@@ -460,15 +480,14 @@ if __name__ == "__main__":
                 fpath.name, root, bids_fname
             )
 
-            # bids_path = BIDSPath(**bids_kwargs, root=root)
-            # print(bids_path.fpath)
-            # raw = read_raw_bids(bids_path)
 
     # append metadata to all subjects and their tsv files
-    all_subjects = get_entity_vals(root, 'subject')
-    all_subjects = [
-        'pt6', 'pt7', 'pt8', 'pt10', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15'
-    ]
-    for subject in all_subjects:
-        add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
-        annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)
+    # all_subjects = get_entity_vals(root, 'subject')
+    # all_subjects = [
+    #     # 'la09',
+    #     # 'pt6',
+    #     # 'pt7', 'pt8', 'pt10', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15'
+    # ]
+    # for subject in all_subjects:
+    #     # add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
+    #     annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)

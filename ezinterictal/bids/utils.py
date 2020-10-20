@@ -29,7 +29,7 @@ class ChannelMarkers(Enum):
         "RFC",
     ]
     # bad marker channel names
-    BAD_MARKERS = ["$", "FZ", "GZ", "DC", "STI"]
+    BAD_MARKERS = ["$", "DC", "STI"]
 
 
 class BadChannelDescription(Enum):
@@ -118,7 +118,7 @@ def _check_bids_parameters(bids_kwargs: Dict) -> Dict:
 
 
 def _look_for_bad_channels(
-        ch_names, bad_markers: List[str] = ChannelMarkers.BAD_MARKERS.name
+        ch_names, bad_markers: List[str] = ChannelMarkers.BAD_MARKERS.name, datatype: str = ''
 ):
     """Looks for hardcoding of what are "bad ch_names".
 
@@ -140,21 +140,18 @@ def _look_for_bad_channels(
 
     # look for ch_names without letter
     bad_channels.extend([ch for ch in ch_names if not re.search("[a-zA-Z]", ch)])
-    # look for ch_names that only have letters - turn off for NIH pt17
-    letter_chans = [ch for ch in ch_names if re.search("[a-zA-Z]", ch)]
-    bad_channels.extend([ch for ch in letter_chans if not re.search("[0-9]", ch)])
+
+    # scalp EEG has non-numbered electrodes
+    if datatype != 'eeg':
+        # look for ch_names that only have letters - turn off for NIH pt17
+        letter_chans = [ch for ch in ch_names if re.search("[a-zA-Z]", ch)]
+        bad_channels.extend([ch for ch in letter_chans if not re.search("[0-9]", ch)])
 
     # for bad_marker in bad_markers:
     #   bad_channels.extend([ch for ch in ch_names if re.search("[bad_marker]", ch])
     if "$" in bad_markers:
         # look for ch_names with '$'
         bad_channels.extend([ch for ch in ch_names if re.search("[$]", ch)])
-    if "FZ" in bad_markers:
-        badname = "FZ"
-        bad_channels.extend([ch for ch in ch_names if ch == badname])
-    if "GZ" in bad_markers:
-        badname = "GZ"
-        bad_channels.extend([ch for ch in ch_names if ch == badname])
     if "DC" in bad_markers:
         badname = "DC"
         bad_channels.extend([ch for ch in ch_names if badname in ch])
@@ -162,6 +159,13 @@ def _look_for_bad_channels(
         badname = "STI"
         bad_channels.extend([ch for ch in ch_names if badname in ch])
 
+    if datatype != 'eeg':
+        if "FZ" in bad_markers:
+            badname = "FZ"
+            bad_channels.extend([ch for ch in ch_names if ch == badname])
+        if "GZ" in bad_markers:
+            badname = "GZ"
+            bad_channels.extend([ch for ch in ch_names if ch == badname])
     # extract non eeg ch_names based on some rules we set
     non_eeg_channels = [
         chan
@@ -170,6 +174,7 @@ def _look_for_bad_channels(
     ]
     # get rid of these ch_names == 'e'
     non_eeg_channels.extend([ch for ch in ch_names if ch == "E"])
+    non_eeg_channels.extend([ch for ch in ch_names if ch.startswith('$')])
     bad_channels.extend(non_eeg_channels)
 
     bad_channels = [orig_chdict[ch] for ch in bad_channels]
@@ -233,4 +238,3 @@ def _channel_text_scrub(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
     raw = raw.rename_channels(lambda x: _reformatchanlabel(x))
 
     return raw
-

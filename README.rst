@@ -44,6 +44,8 @@ Setup environment from pipenv
    # if dev versions are needed
    pipenv install https://api.github.com/repos/mne-tools/mne-bids/zipball/master
 
+
+
 Setup Jupyter Kernel To Test
 ============================
 
