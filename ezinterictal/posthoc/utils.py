@@ -1,10 +1,12 @@
+import collections
+
 import numpy as np
 from eztrack.base.utils import _smooth_matrix
 from eztrack.base.utils.preprocess_utils import _apply_threshold
-import collections
+
 
 def combine_patient_predictions(
-    ytrues, ypred_probs, subject_groups, pat_predictions=None, pat_true=None
+        ytrues, ypred_probs, subject_groups, pat_predictions=None, pat_true=None
 ):
     if pat_predictions is None or pat_true is None:
         pat_predictions = collections.defaultdict(list)
@@ -21,11 +23,13 @@ def combine_patient_predictions(
                 raise RuntimeError("wtf subject should all match...")
     return pat_predictions, pat_true
 
+
 def format_supervised_dataset(
-    X,
-    sozinds_list,
-    threshold=None,
-    smooth=None,
+        X,
+        sozinds_list,
+        threshold=None,
+        smooth=None,
+        clf_type=None,
 ):
     """Format a supervised learning dataset with (unformatted_X, y).
 
@@ -56,7 +60,7 @@ def format_supervised_dataset(
     newX = []
     dropped_inds = []
     for idx, (data_mat, sozinds) in enumerate(
-        zip(X, sozinds_list)
+            zip(X, sozinds_list)
     ):
         if smooth is not None:
             # apply moving avg filter
@@ -72,6 +76,11 @@ def format_supervised_dataset(
             nsoz_mat = data_mat[nsozinds, :]
         except IndexError as e:
             raise IndexError(e)
+
+        if clf_type is not None:
+            if clf_type == 'RerF':
+                soz_mat = np.mean(soz_mat, axis=1)
+                nsoz_mat = np.mean(nsoz_mat, axis=1)
 
         # new_data_mat = np.vstack(
         #     (
@@ -119,3 +128,22 @@ def format_supervised_dataset(
         newX.append(new_data_mat.reshape(-1, 1).squeeze())
 
     return np.asarray(newX), dropped_inds
+
+
+def determine_feature_importances(clf, X, y, n_jobs):
+    from sklearn.inspection import permutation_importance
+
+    result = permutation_importance(
+        estimator=clf,
+        X=X,
+        y=y,
+        scoring="roc_auc",
+        n_repeats=5,
+        n_jobs=n_jobs,
+        random_state=1,
+    )
+
+    std = result.importances_std
+    indices = np.argsort(result.importances_mean)[::-1]
+
+    return result

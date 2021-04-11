@@ -18,21 +18,7 @@ from mne.utils import warn
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 
 
-def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None,
-                           deriv_path=None,
-                           plot_raw=False, plot_heatmap=True, figures_path=None,
-                           excel_fpath=None,
-                           verbose=True, overwrite=False):
-    subject = bids_path.subject
-
-    # get the root derivative path
-    deriv_path = (deriv_path
-                  # /  'nodepth'
-                  / f"{int(raw.info['sfreq'])}Hz"
-                  / "fragility"
-                  / reference
-                  / f"sub-{subject}")
-
+def load_raw_ieeg_data(bids_path, figures_path, resample_sfreq=None, plot_raw=False, verbose=True):
     # load in the data
     raw = read_raw_bids(bids_path, verbose=False)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
@@ -42,7 +28,6 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
         # perform resampling
         raw = raw.resample(resample_sfreq, n_jobs=-1)
 
-
     # pre-process the data using preprocess pipeline
     print('Power Line frequency is : ', raw.info["line_freq"])
     l_freq = 0.5
@@ -50,14 +35,8 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
     raw = preprocess_ieeg(raw, l_freq=l_freq, h_freq=h_freq, verbose=verbose)
 
     if plot_raw:
-        deriv_root = (figures_path
-                      / f"{int(raw.info['sfreq'])}Hz"
-                      / "raw"
-                      / reference
-                      / f"sub-{subject}")
-
         # plot raw data
-        deriv_root.mkdir(exist_ok=True, parents=True)
+        figures_path.mkdir(exist_ok=True, parents=True)
         fig_basename = bids_path.copy().update(extension='.pdf').basename
         scale = 200e-6
         fig = raw.plot(
@@ -66,7 +45,40 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
                 'ecog': scale,
                 'seeg': scale
             }, n_channels=len(raw.ch_names))
-        fig.savefig(deriv_root / fig_basename)
+        fig.savefig(figures_path / fig_basename)
+    return raw
+
+def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None,
+                           deriv_path=None,
+                           plot_raw=False, plot_heatmap=True, figures_path=None,
+                           excel_fpath=None,
+                           verbose=True, overwrite=False):
+    subject = bids_path.subject
+
+    # get the root derivative path
+    if resample_sfreq is not None:
+        sample_chain_name = f'resample{resample_sfreq}'
+    else:
+        sample_chain_name = 'originalsampling'
+
+    deriv_chain = Path(sample_chain_name) / "fragility" / reference / f"sub-{subject}"
+    deriv_path = deriv_path / deriv_chain
+
+    # check if data already there
+    bids_basename = BIDSPath(**bids_path.copy().update(suffix=None, extension=None).entities).basename
+    description = DERIVATIVETYPES.COLPERTURB_MATRIX.value
+    extension = '.npy'
+    search_str = f"*{bids_basename}*desc-{description}_{datatype}{extension}"
+    print(search_str)
+    fpaths = list(deriv_path.glob(search_str))
+    if not overwrite and len(fpaths) > 0:
+        print(f'Found derivative for {bids_path} already inside {deriv_path}')
+        return
+
+    # load in the raw data
+    raw_figures_path = (figures_path / deriv_chain)
+    raw = load_raw_ieeg_data(bids_path, raw_figures_path, resample_sfreq=resample_sfreq,
+                       plot_raw=plot_raw, verbose=verbose)
 
     model_params = {
         "winsize": 250,
@@ -75,7 +87,6 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
         "method_to_use": "pinv",
         'perturb_type': 'C',
     }
-
     # run heatmap
     perturb_deriv, state_arr_deriv, delta_vecs_arr_deriv = lds_raw_fragility(
         raw, reference=reference, return_all=True, **model_params
@@ -317,7 +328,7 @@ def run_analysis(
 
 
 if __name__ == "__main__":
-    WORKSTATION = "home"
+    WORKSTATION = "lab"
 
     if WORKSTATION == "home":
         # bids root to write BIDS data to
@@ -347,7 +358,7 @@ if __name__ == "__main__":
     SUBJECTS = [
         # 'pt1',
         # 'pt2', 'pt3',
-        'pt6',
+        # 'pt6',
         # 'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
         # 'jh103', 'jh105',  # JHH
         # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
@@ -358,7 +369,7 @@ if __name__ == "__main__":
     session = "presurgery"  # only one session
     task = "interictal"
     datatype = "ieeg"
-    acquisition = "ecog"  # or SEEG
+    acquisition = "seeg"  # or SEEG
     extension = ".vhdr"
 
     if acquisition == 'ecog':
@@ -366,17 +377,21 @@ if __name__ == "__main__":
     elif acquisition == 'seeg':
         ignore_acquisitions = ['ecog']
 
-    reference = 'monopolar'
+    reference = 'average'
     sfreq = None  # either resample or don't
 
     # get the runs for this subject
-    all_subjects = get_entity_vals(root, "subject")
+    all_subjects = get_entity_vals(root, "subject", ignore_acquisitions=ignore_acquisitions)
 
     for subject in all_subjects:
-        if subject not in SUBJECTS:
+        # if subject not in SUBJECTS:
+        #     continue
+        if subject == 'pt9':
             continue
         ignore_subs = [sub for sub in all_subjects if sub != subject]
-        all_tasks = get_entity_vals(root, "task", ignore_subjects=ignore_subs)
+        all_tasks = get_entity_vals(root, "task",
+                                    ignore_subjects=ignore_subs,
+                                    ignore_acquisitions=ignore_acquisitions)
         ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
 
         print(f"Analyzing {task} task for {subject}.")
@@ -408,5 +423,5 @@ if __name__ == "__main__":
                                    deriv_path=output_dir,
                                    figures_path=figures_dir,
                                    excel_fpath=excel_fpath,
-                                   overwrite=True
+                                   overwrite=False
                                    )

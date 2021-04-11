@@ -40,11 +40,23 @@ Setup environment from pipenv
 
    # or
    pipenv install -e /Users/adam2392/Documents/eztrack
+   pipenv install -e /home/adam2392/Documents/eztrack
+
 
    # if dev versions are needed
    pipenv install https://api.github.com/repos/mne-tools/mne-bids/zipball/master
 
+To install the MTMORF version of [rerf](https://sporf.neurodata.io/install.html):
 
+    # git clone SPORF package
+
+    # make sure you are on the mtmorf branch
+    cd packedForest
+    make
+
+    # pip install local
+    cd ../Python
+    pip instal -e .
 
 Setup Jupyter Kernel To Test
 ============================

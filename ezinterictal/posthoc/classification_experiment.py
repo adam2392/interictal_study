@@ -3,11 +3,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-from eztrack.base.publication.study import (
-    determine_feature_importances,
-    format_supervised_dataset,
-    tune_hyperparameters,
-)
 from eztrack.io import read_clinical_excel
 from eztrack.utils import NumpyEncoder
 from mne_bids.path import get_entity_vals
@@ -18,14 +13,15 @@ from sklearn.metrics import roc_curve
 from sklearn.preprocessing import OrdinalEncoder
 
 from ezinterictal.io.read import load_all_interictal_derivatives
+from ezinterictal.posthoc.config import random_state
+from ezinterictal.posthoc.hyperparams import tune_hyperparameters
 from ezinterictal.posthoc.sampling import sample_cv_clinical_complexity
-from ezinterictal.posthoc.utils import format_supervised_dataset, combine_patient_predictions
+from ezinterictal.posthoc.utils import format_supervised_dataset, combine_patient_predictions, \
+    determine_feature_importances
 
 # set seed and randomness for downstream reproducibility
 seed = 12345
 np.random.seed(seed)
-
-random_state = 12345
 
 max_depth = [None, 5, 10]
 max_features = ["auto", "log2"]
@@ -52,7 +48,7 @@ def _sequential_aggregation(mat_list, ch_names_list, sozinds_list, outcome):
 
 
 def run_classification_exp(derivatives, subjects, excel_fpath,
-                           cv_inds_fpaths, study_path, clf_type='rf'):
+                           cv_inds_fpaths, study_path, start, num_samples, clf_type='rf'):
     from rerf.rerfClassifier import rerfClassifier
 
     # from rerf.urerf import UnsupervisedRandomForest
@@ -83,11 +79,17 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
     IMAGE_HEIGHT = 20
     if clf_type == "rf":
         clf_func = RandomForestClassifier
+    elif clf_type == 'RerF':
+        model_params.update({
+            'projection_matrix': 'RerF'
+        })
+        clf_func = rerfClassifier
     elif clf_type == "srerf":
         model_params.update(
             {
                 "projection_matrix": "S-RerF",
                 "image_height": IMAGE_HEIGHT,
+                "image_width": num_samples,
                 "patch_height_max": 4,
                 "patch_height_min": 1,
                 "patch_width_max": 8,
@@ -100,6 +102,7 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
             {
                 "projection_matrix": "MT-MORF",
                 "image_height": IMAGE_HEIGHT,
+                "image_width": num_samples,
                 "patch_height_max": 4,
                 "patch_height_min": 1,
                 "patch_width_max": 8,
@@ -107,12 +110,13 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
             }
         )
         clf_func = rerfClassifier
-
+    print(f'Going to train a {clf_type} classifier with {model_params}')
     # 1. First load in dataset into X,y,group tuples
     X = []
     y = []
     groups = []
     sozinds_list = []
+    estimators = []
     for subject, derivative in zip(subjects, derivatives):
         # read in Excel database
         pat_dict = read_clinical_excel(excel_fpath, subject=subject)
@@ -130,7 +134,7 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
         _sozinds_list = [ind for ind, ch in enumerate(ch_names) if ch in soz_chs]
 
         # create pair X,y dataset of all subjects
-        X.append(derivative.get_data())
+        X.append(derivative.get_data(start=start, stop=start + num_samples))
         y.append(outcome)
         groups.append(subject)
         sozinds_list.append(_sozinds_list)
@@ -147,7 +151,14 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
     nested_scores = collections.defaultdict(list)
 
     # 2. loop over CV indices
-    for jdx in range(0, 1):
+    for jdx in range(9, 10):
+        # TODO: uncomment if running over loops successfully
+        # store the cross validation nested scores per feature
+        # nested_scores = collections.defaultdict(list)
+
+        print(f'Running cv index: {jdx}')
+        estimators = []
+
         # load in indices
         with np.load(
                 cv_inds_fpaths[jdx],
@@ -157,21 +168,25 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
 
         # set train indices based on which subjects
         train_inds = [
-            idx for idx, sub in enumerate(subjects) if sub in train_pats
+            idx for idx, sub in enumerate(subject_groups) if sub in train_pats
         ]
-        test_inds = [idx for idx, sub in enumerate(subjects) if sub in test_pats]
+        test_inds = [idx for idx, sub in enumerate(subject_groups) if sub in test_pats]
 
         # create an iterator of all possible hyperparameters
         hyperparameters = thresholds
 
         # run a hyperparameter tune on this subset
+        # X = np.array(X)
+        y = np.array(y)
+        print(len(X), y.shape)
+        print(train_inds)
+        print(test_inds)
         master_scores = tune_hyperparameters(
             clf_func,
             unformatted_X=X.copy(),
             y=y.copy(),
             groups=subject_groups.copy(),
             train_inds=train_inds.copy(),
-            test_inds=test_inds.copy(),
             hyperparameters=hyperparameters,
             dataset_params=dataset_params,
             **model_params,
@@ -194,6 +209,7 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
             X.copy(),
             **dataset_params,
             threshold=best_threshold,
+            clf_type=best_estimator.projection_matrix,
         )
 
         # evaluate on the testing dataset
@@ -202,7 +218,6 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
 
         # resample the held-out test data via bootstrap
         test_sozinds_list = np.asarray(dataset_params["sozinds_list"])[test_inds]
-        test_onsetwin_list = np.asarray(dataset_params["onsetwin_list"])[test_inds]
 
         X_boot, y_boot = X_test.copy(), y_test.copy()
 
@@ -287,7 +302,7 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
         )
 
         # save the estimators
-        if clf_type not in ["srerf", "mtmorf"]:
+        if clf_type not in ["srerf", "mtmorf", 'RerF']:
             estimators = nested_scores.pop("estimator")
             np.savez_compressed(clf_func_path, estimators=estimators)
 
@@ -301,7 +316,7 @@ def run_classification_exp(derivatives, subjects, excel_fpath,
 
 
 if __name__ == "__main__":
-    WORKSTATION = "home"
+    WORKSTATION = "lab"
 
     if WORKSTATION == "home":
         # bids root to write BIDS data to
@@ -318,7 +333,6 @@ if __name__ == "__main__":
         excel_fpath = Path(
             "/home/adam2392/hdd/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
         )
-
         # output directory
         deriv_root = Path("/home/adam2392/hdd/epilepsy_bids") / 'derivatives' / 'interictal'
 
@@ -332,28 +346,42 @@ if __name__ == "__main__":
     clf_type = "mtmorf"
     train_size = 0.5
 
+    # try to start 100 samples in to avoid noise at beginning of recordings
+    start = 100
+
+    # ~8 Hz sampling rate of heatmaps -> 40 = 5 sec, 80 = 10 sec, 240 = 30 sec
+    num_samples = 40
+
     for feature_name in feature_names:
         # create the derivatives chain
-        deriv_chain = Path(f'{sfreq}Hz') / feature_name / reference
+        deriv_chain = Path('originalsampling') / feature_name
         deriv_path = deriv_root / deriv_chain
-        subjects = get_entity_vals(root, 'subject',
+
+        subjects = get_entity_vals(deriv_path, 'subject',
                                    ignore_tasks=['ictal'],
                                    ignore_datatypes=['eeg'])
 
         print('Found these subjects to run cv over...')
+        print(subjects)
         print(f'Total subjects {len(subjects)}')
-
+        study_path = deriv_path / "inds" / "clinical_complexity"
+        study_path.mkdir(exist_ok=True, parents=True)
         cv_ind_fpaths = sample_cv_clinical_complexity(
-            subjects, deriv_path, excel_fpath, train_size=train_size, n_splits=10
+            subjects, study_path, excel_fpath, train_size=train_size, n_splits=10
         )
 
     for feature_name in feature_names:
+        # create the derivatives chain
+        deriv_chain = Path('originalsampling') / feature_name / reference
+        deriv_path = deriv_root / deriv_chain
         # load all datasets
-        interictal_results, subject_groups = load_all_interictal_derivatives(deriv_root=deriv_root,
+        interictal_results, subject_groups = load_all_interictal_derivatives(deriv_root=deriv_path,
                                                                              datatype=datatype,
                                                                              desc=description)
-
+        print(f'Finished loading in all the interictal data from disc... {len(interictal_results)} of data snapshots.')
+        print(subject_groups)
         run_classification_exp(interictal_results,
                                subject_groups, excel_fpath, cv_ind_fpaths,
-                               study_path=deriv_root / 'study',
+                               study_path=deriv_root / deriv_chain.parent / 'study' / reference,
+                               start=start, num_samples=num_samples,
                                clf_type=clf_type)
