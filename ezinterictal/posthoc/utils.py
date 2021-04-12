@@ -6,7 +6,7 @@ from eztrack.base.utils.preprocess_utils import _apply_threshold
 
 
 def combine_patient_predictions(
-        ytrues, ypred_probs, subject_groups, pat_predictions=None, pat_true=None
+    ytrues, ypred_probs, subject_groups, pat_predictions=None, pat_true=None
 ):
     if pat_predictions is None or pat_true is None:
         pat_predictions = collections.defaultdict(list)
@@ -25,11 +25,11 @@ def combine_patient_predictions(
 
 
 def format_supervised_dataset(
-        X,
-        sozinds_list,
-        threshold=None,
-        smooth=None,
-        clf_type=None,
+    X,
+    sozinds_list,
+    threshold=None,
+    smooth=None,
+    clf_type=None,
 ):
     """Format a supervised learning dataset with (unformatted_X, y).
 
@@ -59,9 +59,7 @@ def format_supervised_dataset(
     """
     newX = []
     dropped_inds = []
-    for idx, (data_mat, sozinds) in enumerate(
-            zip(X, sozinds_list)
-    ):
+    for idx, (data_mat, sozinds) in enumerate(zip(X, sozinds_list)):
         if smooth is not None:
             # apply moving avg filter
             data_mat = _smooth_matrix(data_mat, window_len=8)
@@ -78,7 +76,7 @@ def format_supervised_dataset(
             raise IndexError(e)
 
         if clf_type is not None:
-            if clf_type == 'RerF':
+            if clf_type == "RerF":
                 soz_mat = np.mean(soz_mat, axis=1)
                 nsoz_mat = np.mean(nsoz_mat, axis=1)
 

@@ -40,7 +40,6 @@ black = "*"
 pingouin = "*"
 mlxtend = "*"
 dabest = "*"
-eztrack = {editable = true, path = "/home/adam2392/Documents/eztrack"}
 
 [requires]
 python_version = "3.8"

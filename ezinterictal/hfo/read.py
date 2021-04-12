@@ -5,13 +5,14 @@ import numpy as np
 import scipy.io
 from mne_bids import BIDSPath
 
+
 def _convert_event_to_dict(event_arr, ch_names, sfreq):
     event_dict = collections.defaultdict(list)
     for irow in range(event_arr.shape[0]):
         row = event_arr[irow, :]
 
         # matlab indices start at 1
-        ch_name = ch_names[int(row[0]) -1]
+        ch_name = ch_names[int(row[0]) - 1]
 
         # convert start/end time to samples inside the data file
         start_sec, end_sec = row[1], row[2]
@@ -75,60 +76,61 @@ def _tolist(ndarray):
 
 
 def read_hfo_data(fname):
-    data_dict = loadmat(fname).get('data')
+    data_dict = loadmat(fname).get("data")
 
     print(data_dict.keys())
     # extract ripples, fastripples and intersection
     # as T x 3 array = (channel index, start time second, end time second)
-    ripple = np.array(data_dict['R'])
-    fast_ripple = np.array(data_dict['FR'])
-    frandr_ripple = np.array(data_dict['FRandR'])
+    ripple = np.array(data_dict["R"])
+    fast_ripple = np.array(data_dict["FR"])
+    frandr_ripple = np.array(data_dict["FRandR"])
 
     # extract computation time
-    compute_time = data_dict['computationtime']
+    compute_time = data_dict["computationtime"]
 
     # sfreq
-    sfreq = data_dict['fs']
+    sfreq = data_dict["fs"]
 
     # extract ch_names - make sure upper case
-    ch_names = [ch.upper() for ch in data_dict['label']]
+    ch_names = [ch.upper() for ch in data_dict["label"]]
 
-    # convert each of the HFO defintions into a dictionary
+    # convert each of the HFO definitions into a dictionary
     # of channels and their corresponding endpoints (start_time sample, end_time sample)
     ripple_dict = _convert_event_to_dict(ripple, ch_names, sfreq)
     fastripple_dict = _convert_event_to_dict(fast_ripple, ch_names, sfreq)
     frandr_dict = _convert_event_to_dict(frandr_ripple, ch_names, sfreq)
 
     hfo_dict = {
-        'ripple': ripple_dict,
-        'fastripple': fastripple_dict,
-        'fastripple_and_ripple': frandr_dict,
-        'sfreq': sfreq,
-        'compute_time': compute_time
+        "ripple": ripple_dict,
+        "fastripple": fastripple_dict,
+        "fastripple_and_ripple": frandr_dict,
+        "sfreq": sfreq,
+        "compute_time": compute_time,
     }
     return hfo_dict
 
+
 def _get_bids_path(fname):
-    subject = fname.split('_')[0]
-    run = fname.split('_')[-1].split('.')[0]
+    subject = fname.split("_")[0]
+    run = fname.split("_")[-1].split(".")[0]
 
     # all presurgery
-    session = 'presurgery'
+    session = "presurgery"
 
     # these are all interictal datasets
-    task = 'interictal'
+    task = "interictal"
     if run.isnumeric():
         pass
     else:
-        task = f'interictal{run}'
+        task = f"interictal{run}"
 
-    bids_path = BIDSPath(subject=subject, session=session, task=task,
-                         run=run)
+    bids_path = BIDSPath(subject=subject, session=session, task=task, run=run)
 
-if __name__ == '__main__':
-    deriv_root = Path('/home/adam2392/hdd2/derivatives/hfo')
 
-    for fpath in deriv_root.glob('*.mat'):
+if __name__ == "__main__":
+    deriv_root = Path("/home/adam2392/hdd2/derivatives/hfo")
+
+    for fpath in deriv_root.glob("*.mat"):
         hfo_dict = read_hfo_data(fpath)
 
         print(hfo_dict.keys())

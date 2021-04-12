@@ -4,11 +4,10 @@ from typing import Dict, Union, List
 
 import mne
 from mne.utils import warn
-from mne_bids.path import (_parse_ext)
+from mne_bids.path import _parse_ext
 from mne_bids.tsv_handler import _from_tsv, _to_tsv
 
-MINIMAL_BIDS_ENTITIES = ('subject', 'session', 'task',
-                         'acquisition', 'run', 'datatype')
+MINIMAL_BIDS_ENTITIES = ("subject", "session", "task", "acquisition", "run", "datatype")
 
 
 class ChannelMarkers(Enum):
@@ -33,8 +32,8 @@ class ChannelMarkers(Enum):
 
 
 class BadChannelDescription(Enum):
-    FLAT = 'flat-signal',
-    HIGHFREQ = 'high-freq-noise'
+    FLAT = ("flat-signal",)
+    HIGHFREQ = "high-freq-noise"
 
 
 def _replace_ext(fname, ext, verbose=False):
@@ -49,12 +48,12 @@ def _replace_ext(fname, ext, verbose=False):
 
 
 def _update_sidecar_tsv_byname(
-        sidecar_fname: str,
-        name: Union[List, str],
-        colkey: str,
-        val: str,
-        allow_fail=False,
-        verbose=False,
+    sidecar_fname: str,
+    name: Union[List, str],
+    colkey: str,
+    val: str,
+    allow_fail=False,
+    verbose=False,
 ):
     """Update a sidecar JSON file with a given key/value pair.
 
@@ -107,9 +106,11 @@ def _update_sidecar_tsv_byname(
 
 def _check_bids_parameters(bids_kwargs: Dict) -> Dict:
     if not all([entity in bids_kwargs for entity in MINIMAL_BIDS_ENTITIES]):
-        raise RuntimeError(f'BIDS kwargs parameters are missing an entity. '
-                           f'All of {MINIMAL_BIDS_ENTITIES} need to be passed '
-                           f'in the dictionary input. You passed in {bids_kwargs}.')
+        raise RuntimeError(
+            f"BIDS kwargs parameters are missing an entity. "
+            f"All of {MINIMAL_BIDS_ENTITIES} need to be passed "
+            f"in the dictionary input. You passed in {bids_kwargs}."
+        )
 
     # construct the entities dictionary
     entities = {entity: bids_kwargs[entity] for entity in MINIMAL_BIDS_ENTITIES}
@@ -118,7 +119,9 @@ def _check_bids_parameters(bids_kwargs: Dict) -> Dict:
 
 
 def _look_for_bad_channels(
-        ch_names, bad_markers: List[str] = ChannelMarkers.BAD_MARKERS.name, datatype: str = ''
+    ch_names,
+    bad_markers: List[str] = ChannelMarkers.BAD_MARKERS.name,
+    datatype: str = "",
 ):
     """Looks for hardcoding of what are "bad ch_names".
 
@@ -142,7 +145,7 @@ def _look_for_bad_channels(
     bad_channels.extend([ch for ch in ch_names if not re.search("[a-zA-Z]", ch)])
 
     # scalp EEG has non-numbered electrodes
-    if datatype != 'eeg':
+    if datatype != "eeg":
         # look for ch_names that only have letters - turn off for NIH pt17
         letter_chans = [ch for ch in ch_names if re.search("[a-zA-Z]", ch)]
         bad_channels.extend([ch for ch in letter_chans if not re.search("[0-9]", ch)])
@@ -159,7 +162,7 @@ def _look_for_bad_channels(
         badname = "STI"
         bad_channels.extend([ch for ch in ch_names if badname in ch])
 
-    if datatype != 'eeg':
+    if datatype != "eeg":
         if "FZ" in bad_markers:
             badname = "FZ"
             bad_channels.extend([ch for ch in ch_names if ch == badname])
@@ -174,7 +177,7 @@ def _look_for_bad_channels(
     ]
     # get rid of these ch_names == 'e'
     non_eeg_channels.extend([ch for ch in ch_names if ch == "E"])
-    non_eeg_channels.extend([ch for ch in ch_names if ch.startswith('$')])
+    non_eeg_channels.extend([ch for ch in ch_names if ch.startswith("$")])
     bad_channels.extend(non_eeg_channels)
 
     bad_channels = [orig_chdict[ch] for ch in bad_channels]

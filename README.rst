@@ -56,7 +56,7 @@ To install the MTMORF version of [rerf](https://sporf.neurodata.io/install.html)
 
     # pip install local
     cd ../Python
-    pip instal -e .
+    pip install -e .
 
 Setup Jupyter Kernel To Test
 ============================

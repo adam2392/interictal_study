@@ -2,7 +2,7 @@
 PYTHON ?= python
 PYTESTS ?= pytest
 CODESPELL_SKIPS ?= "doc/auto_*,*.fif,*.eve,*.gz,*.tgz,*.zip,*.mat,*.stc,*.label,*.w,*.bz2,*.annot,*.sulc,*.log,*.local-copy,*.orig_avg,*.inflated_avg,*.gii,*.pyc,*.doctree,*.pickle,*.inv,*.png,*.edf,*.touch,*.thickness,*.nofix,*.volume,*.defect_borders,*.mgh,lh.*,rh.*,COR-*,FreeSurferColorLUT.txt,*.examples,.xdebug_mris_calc,bad.segments,BadChannels,*.hist,empty_file,*.orig,*.js,*.map,*.ipynb,searchindex.dat,install_mne_c.rst,plot_*.rst,*.rst.txt,c_EULA.rst*,*.html,gdf_encodes.txt,*.svg"
-CODESPELL_DIRS ?= analysis/ doc/ tutorials/ examples/ tests/
+CODESPELL_DIRS ?= ezinterictal/ doc/ tutorials/ examples/ tests/
 
 all: clean inplace test
 
@@ -16,7 +16,7 @@ clean-so:
 
 clean-build:
 	rm -rf _build
-	rm -rf analysis.egg-info
+	rm -rf ezinterictal.egg-info
 
 clean-ctags:
 	rm -f tags
@@ -55,60 +55,18 @@ test-coverage:
 trailing-spaces:
 	find . -name "*.py" | xargs perl -pi -e 's/[ \t]*$$//'
 
-build-doc:
-	cd doc; make clean
-	cd doc; make html
-
-pydocstyle:
-	@echo "Running pydocstyle"
-	@pydocstyle
-
-pycodestyle:
-	@echo "Running pycodestyle"
-	@pycodestyle
-
-push-marcc:
-	rsync -aP $(LOCALDIR) $(MARCCDIR);
-
-push-external:
-#	rsync -aP $(LOCALDIR) $(EXTERNALDIR) --exclude='*/tempdir/';
-	rsync -aP $(LOCAL_RESULTSDIR) $(EXTERNAL_RESULTSDIR);
-
-pull-marcc:
-	rsync -aP $(MARCCDIR) $(LOCALDIR);
-
-pull-external:
-	rsync -aP $(EXTERNALDIR) $(LOCALDIR) --exclude='*/tempdir/';
-
-check-manifest:
-	check-manifest --ignore .circleci*,doc,benchmarks,notebooks,data,tests
-
-upload-pipy:
-	python setup.py sdist bdist_egg register upload
-
 black:
 	@if command -v black > /dev/null; then \
 		echo "Running black"; \
-		black --check analysis; \
-		black analysis/*; \
+		black --check ezinterictal; \
+		black ezinterictal/*; \
 	else \
 		echo "black not found, please install it!"; \
 		exit 1; \
 	fi;
 	@echo "black passed"
 
-mypy:
-	@if command -v mypy > /dev/null; then \
-		echo "Running mypy"; \
-		mypy --check analysis; \
-	else \
-		echo "mypy not found, please install it!"; \
-		exit 1; \
-	fi;
-	@echo "mypy passed"
 
 check:
-	@$(MAKE) -k black pydocstyle codespell-error
+	@$(MAKE) -k black codespell-error
 
-ssh:
-	$(ssh) $(remote)

@@ -13,14 +13,14 @@ from ezinterictal.posthoc.utils import format_supervised_dataset
 
 
 def _evaluate_model(
-        clf_func,
-        model_params,
-        train_inds,
-        X_formatted,
-        y,
-        groups,
-        cv,
-        dropped_inds=None,
+    clf_func,
+    model_params,
+    train_inds,
+    X_formatted,
+    y,
+    groups,
+    cv,
+    dropped_inds=None,
 ):
     y = np.array(y).copy()
     groups = np.array(groups).copy()
@@ -65,14 +65,14 @@ def _evaluate_model(
 
 
 def tune_hyperparameters(
-        clf_func,
-        unformatted_X,
-        y,
-        groups,
-        train_inds,
-        hyperparameters,
-        dataset_params,
-        **model_params,
+    clf_func,
+    unformatted_X,
+    y,
+    groups,
+    train_inds,
+    hyperparameters,
+    dataset_params,
+    **model_params,
 ):
     """Perform hyperparameter tuning.
 
@@ -112,19 +112,17 @@ def tune_hyperparameters(
     for idx, hyperparam in enumerate(hyperparameters):
         # extract the hyperparameter explicitly
         threshold = hyperparam
-        hyperparam_str = (
-            f"threshold-{threshold}"
-        )
+        hyperparam_str = f"threshold-{threshold}"
         # apply the hyperparameters to the data
         #         print(unformatted_X.shape)
         X_formatted, dropped_inds = format_supervised_dataset(
             unformatted_X,
             **dataset_params,
             threshold=threshold,
-            clf_type=model_params.get('projection_matrix'),
+            clf_type=model_params.get("projection_matrix"),
         )
         if idx == 0:
-            print('The formatted dataset is X')
+            print("The formatted dataset is X")
             print(X_formatted.shape)
 
         scores = _evaluate_model(
