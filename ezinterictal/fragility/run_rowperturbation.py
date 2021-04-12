@@ -1,110 +1,10 @@
 from pathlib import Path
 
 from eztrack.fragility.fragility import (
-    state_perturbation_array,
     state_perturbation_derivative,
 )
 from eztrack.io import read_derivative_npy
-from eztrack.io.base import _add_desc_to_bids_fname, DERIVATIVETYPES
-from mne.utils import warn
-from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
-
-
-def run_analysis(
-    bids_path,
-    reference="monopolar",
-    resample_sfreq=None,
-    deriv_path=None,
-    figures_path=None,
-    excel_fpath=None,
-    verbose=True,
-    overwrite=False,
-):
-    subject = bids_path.subject
-    datatype = bids_path.datatype
-
-    # load in the data
-    raw = read_raw_bids(bids_path)
-    raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-
-    if resample_sfreq:
-        # perform resampling
-        raw = raw.resample(resample_sfreq, n_jobs=-1)
-
-    if deriv_path is None:
-        deriv_path = bids_path.root / "derivatives"
-    deriv_path = (
-        deriv_path
-        / f"{int(raw.info['sfreq'])}Hz"
-        / "fragility"
-        / reference
-        / f"sub-{subject}"
-    )
-    # set where to save the data output to
-    if figures_path is None:
-        figures_path = bids_path.root / "derivatives" / "figures"
-    figures_path = (
-        figures_path
-        / f"{int(raw.info['sfreq'])}Hz"
-        / "fragility"
-        / reference
-        / f"sub-{subject}"
-    )
-
-    # use the same basename to save the data
-    deriv_basename = bids_path.basename
-    deriv_basename = _add_desc_to_bids_fname(
-        deriv_basename,
-        description=DERIVATIVETYPES.ROWPERTURB_MATRIX.value,
-        verbose=False,
-    )
-    deriv_fpath = deriv_path / deriv_basename
-    if deriv_fpath.exists() and not overwrite:
-        warn(f"The {deriv_basename}.npy exists, but overwrite if False.")
-        return
-
-    # write results to
-    source_entities = bids_path.entities
-    raw_basename = BIDSPath(**source_entities).basename
-    deriv_fname = list(deriv_path.glob(f"{raw_basename}*rowperturbmatrix*"))
-    if len(deriv_fname) > 0:
-        deriv_fname = deriv_fname[0]
-
-    deriv_fname = list(deriv_path.glob(f"{raw_basename}*statematrix*"))[0]
-    state_arr, result_info, metadata = read_result_eztrack(
-        deriv_fname=deriv_fname, description="statematrix", normalize=False
-    )
-    # run row perturbation
-    radius = 1.5
-    perturb_type = "R"
-    pert_mats, delta_vecs_arr = state_perturbation_array(
-        state_arr, radius=radius, perturb_type=perturb_type, n_jobs=-1
-    )
-
-    # write results to
-    pert_sidecar = write_result_array(
-        pert_mats,
-        metadata=metadata,
-        deriv_fpath=deriv_fpath,
-        verbose=verbose,
-    )
-    result = Result(pert_mats, raw.info, metadata=metadata)
-
-    # deriv_fname = deriv_path / bids_path.basename
-    fig_basename = deriv_basename
-    # result = read_result_eztrack(deriv_fname=deriv_fname,
-    #                              description='rowperturbmatrix',
-    #                              normalize=False)
-
-    result.normalize()
-    # create the heatmap
-    plot_result_heatmap(
-        result=result,
-        fig_basename=fig_basename,
-        figures_path=figures_path,
-        excel_fpath=excel_fpath,
-        show_soz=True,
-    )
+from mne_bids import BIDSPath, get_entity_vals
 
 
 def run_row_analysis(root, deriv_root, deriv_chain):
@@ -199,6 +99,7 @@ def main():
 
     # path directories
     root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+    root = Path('/home/adam2392/hdd2/Dropbox/epilepsy_bids')
     deriv_root = root / "derivatives"
     deriv_chain = Path("interictal") / sampling_strategy / "fragility" / reference
 
