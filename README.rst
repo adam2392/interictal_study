@@ -53,6 +53,6 @@ You need to install ipykernel to expose your environment to jupyter notebooks.
 
 .. code-block::
 
-   python -m ipykernel install --name  --user
+   python -m ipykernel install --name iistudy --user
    # now you can run jupyter lab and select a kernel
    jupyter lab

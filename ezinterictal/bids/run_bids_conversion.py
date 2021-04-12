@@ -114,176 +114,6 @@ def _modify_raw_with_json(raw: mne.io.BaseRaw,
     return raw
 
 
-# def _set_ch_types(raw, subject, session):
-#     raw.set_channel_types({ch: 'misc' for ch in raw.ch_names})
-#
-#     if subject == 'E1':
-#         grids = [f'C{idx}' for idx in range(1, 65)]
-#         depths = [f'SAD{idx}' for idx in range(1, 7)] + \
-#                  [f'SPD{idx}' for idx in range(1, 7)] + \
-#                  [f'MPOD{idx}' for idx in range(1, 7)] + \
-#                  [f'IAD{idx}' for idx in range(1, 7)] + \
-#                  [f'MAOD{idx}' for idx in range(1, 7)] + \
-#                  [f'IPD{idx}' for idx in range(1, 7)]
-#         resected = ['C19', 'C20', 'C27', 'C28']
-#         bads = ['C15'] + [f'C{idx}' for idx in range(17, 21)] + \
-#                [f'C{idx}' for idx in range(24, 29)] + \
-#                [f'C{idx}' for idx in range(34, 37)] + \
-#                ['C51', 'C57', 'C59']
-#         bads = {
-#             'C15': BadChannelDescription.HIGHFREQ,
-#             # 'C55': BadChannelDescription.FLAT,
-#             # 'C56': BadChannelDescription.FLAT,
-#             'C57': BadChannelDescription.HIGHFREQ,
-#             # 'C63': BadChannelDescription.FLAT,
-#             # 'C64': BadChannelDescription.FLAT,
-#         }
-#
-#         # add bad resected channels
-#         if session in ['postsurgery', 'intraoperative']:
-#             bad_chs = []
-#             bad_chs.extend(['C15', 'C17', 'C18', 'C19', 'C20'] + \
-#                            [f'C{idx}' for idx in range(25, 29)] + \
-#                            ['C34', 'C51', 'C57', 'C59'])
-#             bad_chs.extend(depths)
-#             for ch in bad_chs:
-#                 bads[ch] = BadChannelDescription.FLAT
-#
-#     elif subject == 'E2':
-#         grids = [f'C{idx}' for idx in range(1, 65)]
-#         depths = []
-#         resected = ['C1', 'C2']
-#         bads = [f'C{idx}' for idx in range(1, 11)]
-#         bads = []
-#     elif subject == 'E3':
-#         grids = [f'C{idx}' for idx in range(1, 65)]
-#         depths = \
-#             [f'ASD{idx}' for idx in range(1, 7)] + \
-#             [f'PD{idx}' for idx in
-#              range(1, 7)]  # + [f'PS{idx}' for idx in range(1, 5)] + # [f'AID{idx}' for idx in range(1, 7)] + \
-#         resected = ['C3', 'C4', 'C11', 'C12', 'C19',
-#                     'C20', 'C27', 'C28']
-#         bads = [f'C{idx}' for idx in range(1, 6)] + \
-#                [f'C{idx}' for idx in range(9, 15)] + \
-#                [f'C{idx}' for idx in range(17, 24)] + \
-#                [f'C{idx}' for idx in range(25, 32)] + ['C51']
-#
-#         bads = {
-#             'C51': BadChannelDescription.FLAT,
-#         }
-#     elif subject == 'E4':
-#         grids = [f'C{idx}' for idx in range(1, 49)]
-#         depths = [f'F2AL{idx}' for idx in range(1, 7)] + \
-#                  [f'F2BC{idx}' for idx in range(1, 7)] + \
-#                  [f'F2CL{idx}' for idx in range(1, 7)]
-#         resected = ['C19', 'C20', 'C27', 'C28', 'C35', 'C36']
-#         bads = [f'C{idx}' for idx in range(3, 6)] + \
-#                [f'C{idx}' for idx in range(11, 14)] + \
-#                ['C19', 'C20', 'C27', 'C28', 'C35', 'C36',
-#                 'C47']
-#
-#         bads = {
-#             'C1': BadChannelDescription.FLAT,
-#             'C2': BadChannelDescription.FLAT,
-#             'C3': BadChannelDescription.HIGHFREQ,
-#             'C9': BadChannelDescription.FLAT,
-#             'C10': BadChannelDescription.FLAT,
-#             'C17': BadChannelDescription.FLAT,
-#             'C18': BadChannelDescription.FLAT,
-#             'C25': BadChannelDescription.FLAT,
-#             'C26': BadChannelDescription.FLAT,
-#             'C33': BadChannelDescription.FLAT,
-#             'C34': BadChannelDescription.FLAT,
-#             'C41': BadChannelDescription.FLAT,
-#             'C42': BadChannelDescription.FLAT
-#         }
-#
-#         # add bad resected channels
-#         if session in ['postsurgery']:
-#             bad_chs = []
-#             bad_chs.extend([f'C{idx}' for idx in range(1, 6)] + \
-#                         [f'C{idx}' for idx in range(9, 14)] + \
-#                         [f'C{idx}' for idx in range(17, 20)] + \
-#                         [f'C{idx}' for idx in range(25, 27)] + \
-#                         [f'C{idx}' for idx in range(33, 37)] + \
-#                         ['C20', 'C25', 'C26', 'C27', 'C28', 'C41', 'C42', 'C47'])
-#             bad_chs.extend(depths)
-#             for ch in bad_chs:
-#                 bads[ch] = BadChannelDescription.FLAT
-#
-#     elif subject == 'E5':
-#         grids = [f'C{idx}' for idx in range(1, 49)]
-#         depths = [f'ML{idx}' for idx in range(1, 7)] + \
-#                  [f'F3C{idx}' for idx in range(1, 7)] + \
-#                  [f'F1OF{idx}' for idx in range(1, 7)]
-#         resected = ['C19', 'C20', 'C21',
-#                     'C27', 'C28', 'C29', 'C36', 'C37']
-#         bads = ['C2', 'C7', 'C16'] + [f'C{idx}' for idx in range(10, 15)] + \
-#                [f'C{idx}' for idx in range(18, 22)] + \
-#                [f'C{idx}' for idx in range(26, 30)] + \
-#                [f'C{idx}' for idx in range(34, 38)]
-#
-#     elif subject == 'E6':
-#         grids = [f'C{idx}' for idx in range(1, 49)] + [f'C{idx}' for idx in range(50, 57)]
-#         depths = [f'1D{idx}' for idx in range(1, 7)] + \
-#                  [f'2D{idx}' for idx in range(1, 7)] + \
-#                  [f'3D{idx}' for idx in range(1, 7)]
-#         resected = ['C19', 'C20', 'C28', 'C29', 'C37', 'C38']
-#         bads = ['C15', 'C49'] + [f'C{idx}' for idx in range(17, 21)] + \
-#                [f'C{idx}' for idx in range(24, 30)] + \
-#                [f'C{idx}' for idx in range(33, 39)] + \
-#                [f'C{idx}' for idx in range(52, 55)]
-#
-#     elif subject == 'E7':
-#         grids = [f'C{idx}' for idx in range(1, 65)]
-#         depths = [f'AD{idx}' for idx in range(1, 7)] + \
-#                  [f'HD{idx}' for idx in range(1, 7)] + \
-#                  [f'TOD{idx}' for idx in range(1, 7)] + \
-#                  [f'POD{idx}' for idx in range(1, 7)] + \
-#                  [f'FOD{idx}' for idx in range(1, 7)] + \
-#                  [f'ATPS{idx}' for idx in range(1, 7)] + \
-#                  [f'ABTS{idx}' for idx in range(1, 7)] + \
-#                  [f'PBTS{idx}' for idx in range(1, 7)]
-#
-#         resected = ['C41', 'C42', 'C49', 'C50', 'C51',
-#                     'C57', 'C58', 'C59', 'C60']
-#         bads = ['C12', 'C24', 'C38', 'C41', 'C42', 'C49', 'C50', 'C51'] + \
-#                [f'C{idx}' for idx in range(57, 61)]
-#
-#     # from pprint import pprint
-#     # ch_names = [ch for ch in list(raw.info['ch_names'])]
-#     # print('This shold work!')
-#     # print('F10F1' in ch_names)
-#     # # print(ch_names)
-#     # for ch in depths:
-#     #     if str(ch) not in ch_names:
-#     #         print('WTF??')
-#     #         print(ch)
-#     #         import numpy as np
-#     #         print(np.where(np.array(raw.info['ch_names']).astype(str) == 'F10F1'))
-#     # print(raw.info)
-#     # pprint(raw.info['ch_names'][50:])
-#     raw.set_channel_types({ch: 'ecog' for ch in grids})
-#     raw.set_channel_types({ch: 'seeg' for ch in depths})
-#     # not_set = []
-#     # for ch in grids:
-#     #     try:
-#     #         raw.set_channel_types({ch: 'ecog'})
-#     #     except ValueError as e:
-#     #         not_set.append(ch)
-#     # for ch in depths:
-#     #     try:
-#     #         raw.set_channel_types({ch: 'seeg'})
-#     #     except ValueError as e:
-#     #         not_set.append(ch)
-#     # print(f'did not set these channesl for {raw}: ', not_set)
-#     # raw.set_channel_types({ch: 'seeg' for ch in depths})
-#     raw.info['bads'].extend(bads.keys())
-#     raw.info['bads_description'] = bads
-#
-#     return resected
-
-
 def write_edf_to_bids(edf_fpath: [str, Path],
                       bids_kwargs: Dict, bids_root: [str, Path],
                       line_freq: int = 60, datatype: str=None) -> Dict:
@@ -320,17 +150,11 @@ def write_edf_to_bids(edf_fpath: [str, Path],
     # load in EDF file
     raw = read_raw_edf(edf_fpath)
 
-    nan_indx = np.argwhere(np.isnan(raw.get_data()))
-    if nan_indx.any():
-        print(nan_indx)
-        print(len(nan_indx))
-
     # set channel types
-    # resected_chs = _set_ch_types(raw, entities.get('subject'),
-    #                              entities.get('session'))
     if datatype is None:
-        datatype = 'ecog'
-    raw.set_channel_types({ch: datatype for ch in raw.ch_names})
+        modality = 'ecog'
+    modality = entities['acquisition']
+    raw.set_channel_types({ch: modality for ch in raw.ch_names})
 
     # channel text scrub
     raw = _channel_text_scrub(raw)
@@ -391,8 +215,8 @@ if __name__ == "__main__":
         root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_bids/")
         source_dir = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_bids/sourcedata")
 
-        root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-        source_dir = Path("/Users/adam2392/Dropbox/epilepsy_bids/sourcedata")
+        # root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
+        # source_dir = Path("/Users/adam2392/Dropbox/epilepsy_bids/sourcedata")
 
         # path to excel layout file - would be changed to the datasheet locally
         excel_fpath = Path(
@@ -405,23 +229,24 @@ if __name__ == "__main__":
             "/home/adam2392/hdd2/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
         )
     # define BIDS identifiers
-    modality = "eeg"
+    modality = "seeg"
     task = "ictal"
     session = "presurgery"
-    datatype = 'eeg'
+    datatype = 'ieeg'
     extension = ".vhdr"
 
     # define BIDS entities
     SUBJECTS = [
-        'pt1',
-        # 'pt2',
-        'pt3',
-        'pt6',
-        'pt7', 'pt8',
-        # 'pt9',
-        'pt11',
-        # 'la09',
-        'pt12', 'pt13', 'pt14', 'pt15', 'pt16', 'pt17', # NIH
+        'la08',
+        # 'pt1',
+        # # 'pt2',
+        # 'pt3',
+        # 'pt6',
+        # 'pt7', 'pt8',
+        # # 'pt9',
+        # 'pt11',
+        # # 'la09',
+        # 'pt12', 'pt13', 'pt14', 'pt15', 'pt16', 'pt17', # NIH
         # 'jh103', 'jh105',  # JHH
         # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
         # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
@@ -432,8 +257,9 @@ if __name__ == "__main__":
     # regex pattern for the files is:
     for subject in SUBJECTS:
         source_folder = source_dir / 'nih' / subject / 'scalp'
+        source_folder = source_dir / 'cleveland' / subject / 'seeg'
         print(source_folder)
-        search_str = f'*Inter_with_P_3.edf'
+        # search_str = f'*Inter_with_P_3.edf'
         search_str = f'*.edf'
         filepaths = list(source_folder.rglob(search_str))
 
@@ -483,11 +309,11 @@ if __name__ == "__main__":
 
     # append metadata to all subjects and their tsv files
     # all_subjects = get_entity_vals(root, 'subject')
-    # all_subjects = [
-    #     # 'la09',
-    #     # 'pt6',
-    #     # 'pt7', 'pt8', 'pt10', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15'
-    # ]
-    # for subject in all_subjects:
-    #     # add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
-    #     annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)
+    all_subjects = [
+        'la08',
+        # 'pt6',
+        # 'pt7', 'pt8', 'pt10', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15'
+    ]
+    for subject in all_subjects:
+        add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
+        annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)

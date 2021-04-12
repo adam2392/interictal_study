@@ -1,21 +1,17 @@
 from pathlib import Path
 
-import numpy as np
 from eztrack import (
-    preprocess_raw,
-    lds_raw_fragility,
-    write_result_fragility,
-    plot_result_heatmap, Result
+    lds_raw_fragility
 )
-from eztrack.preprocess import preprocess_ieeg
-from eztrack.fragility.fragility import state_perturbation_array, state_perturbation_derivative
+from eztrack.fragility.fragility import state_perturbation_derivative, state_lds_derivative
+from eztrack.io import read_derivative_npy, match_derivative
 from eztrack.io.base import _add_desc_to_bids_fname, DERIVATIVETYPES
-from eztrack.io.derivative import read_derivative
 from eztrack.io.read_datasheet import read_clinical_excel
-from eztrack.io.write_result import write_result_array
+from eztrack.preprocess import preprocess_ieeg
 from eztrack.utils import ClinicalContactColumns
-from mne.utils import warn
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
+
+from ezinterictal.io.read import load_data
 
 
 def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None,
@@ -41,7 +37,6 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
     if resample_sfreq is not None:
         # perform resampling
         raw = raw.resample(resample_sfreq, n_jobs=-1)
-
 
     # pre-process the data using preprocess pipeline
     print('Power Line frequency is : ', raw.info["line_freq"])
@@ -104,10 +99,10 @@ def run_fragility_analysis(bids_path, reference='monopolar', resample_sfreq=None
             epz_chs = pat_dict[ClinicalContactColumns.SPREAD_CONTACTS.value]
             rz_chs = pat_dict[ClinicalContactColumns.RESECTED_CONTACTS.value]
         figures_path = (figures_path
-                      / f"{int(raw.info['sfreq'])}Hz"
-                      / "fragility"
-                      / reference
-                      / f"sub-{subject}")
+                        / f"{int(raw.info['sfreq'])}Hz"
+                        / "fragility"
+                        / reference
+                        / f"sub-{subject}")
 
         perturb_deriv.normalize()
         fig_basename = perturb_deriv_fpath.with_suffix('.pdf')
@@ -156,163 +151,116 @@ def run_perturbation_analysis(state_deriv_fpath, perturb_type='C', plot_heatmap=
 
 
 def run_analysis(
-        bids_path, reference="monopolar", resample_sfreq=None, deriv_path=None,
-        figures_path=None, excel_fpath=None, perturb_row=True, verbose=True, overwrite=False,
+        bids_path, state_deriv_fname, colperturb_deriv_fname, rowperturb_deriv_fname,
+        reference="monopolar", resample_sfreq=None, deriv_root=None,
+        figures_path=None, excel_fpath=None, verbose=True, overwrite=False,
 ):
     subject = bids_path.subject
 
-    # load in the data
-    raw = read_raw_bids(bids_path, verbose=False)
-    raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-    raw.load_data()
+    # load in raw data
+    fig_basename = bids_path.copy().update(extension='.svg', check=False).basename
+    figure_fpath = root / 'derivatives' / "figures" / "raw" / reference / f"sub-{subject}" / fig_basename
+    deriv_chain = Path("fragility") / reference / f"sub-{subject}"
+    figures_path = figures_path / deriv_chain
+    deriv_path = deriv_root / deriv_chain
+    raw = load_data(bids_path, resample_sfreq, figure_fpath=figure_fpath, verbose=verbose)
 
-    if resample_sfreq is not None:
-        # perform resampling
-        raw = raw.resample(resample_sfreq, n_jobs=-1)
-    # print(raw._orig_units)
-    # nan_indx = np.argwhere(np.isnan(raw.get_data()))
-    # if nan_indx.any():
-    #     print(nan_indx)
-    #     print(len(nan_indx))
-    # raise Exception('hi')
-
-    if deriv_path is None:
-        deriv_path = (
-                bids_path.root
-                / "derivatives"
-        )
-    deriv_path = (deriv_path
-                  # /  'nodepth'
-                  / f"{int(raw.info['sfreq'])}Hz"
-                  / "fragility"
-                  / reference
-                  / f"sub-{subject}")
-    # set where to save the data output to
-    if figures_path is None:
-        figures_path = (
-                bids_path.root
-                / "derivatives"
-                / "figures"
-        )
-    deriv_root = (figures_path
-                  # /'nodepth' \
-                  / f"{int(raw.info['sfreq'])}Hz" \
-                  / "raw" \
-                  / reference \
-                  / f"sub-{subject}")
-    figures_path = (figures_path
-                    # / 'nodepth'
-                    / f"{int(raw.info['sfreq'])}Hz"
-                    / "fragility"
-                    / reference
-                    / f"sub-{subject}")
-
-    # use the same basename to save the data
-    deriv_basename = bids_path.basename
-    bids_entities = bids_path.entities
-    deriv_basename_nosuffix = BIDSPath(**bids_entities).basename
-    print(deriv_basename_nosuffix)
-    if len(list(deriv_path.rglob(f'{deriv_basename_nosuffix}*.npy'))) > 0 and not overwrite:
-        warn(f'The {deriv_basename}.npy exists, but overwrite if False.')
-        return
-
-    # pre-process the data using preprocess pipeline
-    datatype = bids_path.datatype
-    print('Power Line frequency is : ', raw.info["line_freq"])
-    raw = preprocess_raw(raw, datatype=datatype,
-                         verbose=verbose, method="simple", drop_chs=False)
-
-    # plot raw data
-    deriv_root.mkdir(exist_ok=True, parents=True)
-    fig_basename = bids_path.copy().update(extension='.pdf').basename
-    scale = 200e-6
-    fig = raw.plot(
-        decim=10,
-        scalings={
-            'ecog': scale,
-            'seeg': scale
-        }, n_channels=len(raw.ch_names))
-    fig.savefig(deriv_root / fig_basename)
-
-    # raise Exception('hi')
-    model_params = {
+    sysid_params = {
         "winsize": 250,
         "stepsize": 125,
-        "radius": 1.5,
+        'l2penalty': 0,
         "method_to_use": "pinv",
-        'perturb_type': 'C',
     }
-    print(raw.get_data().shape)
+    perturbation_params = {
+        "radius": 1.5,
+        'perturb_type': 'C',
+        'perturbation_strategy': 'univariate',
+    }
 
-    nan_indx = np.argwhere(np.isnan(raw.get_data()))
-    if nan_indx.any():
-        print(nan_indx)
-        print(len(nan_indx))
-        raise Exception('WTF?')
+    # if state derivative exists, and not overwrite skip
+    state_deriv_fpath = match_derivative(deriv_path, state_deriv_fname, '.json', verbose=verbose)
+    if state_deriv_fpath is None:
+        state_deriv_fpath = deriv_path / state_deriv_fname
+    if state_deriv_fpath.exists() and not overwrite:
+        state_deriv = read_derivative_npy(state_deriv_fpath)
+    else:
+        state_deriv = state_lds_derivative(raw, reference=reference, n_jobs=-1, **sysid_params)
 
-    # run heatmap
-    result, A_mats, delta_vecs_arr = lds_raw_fragility(
-        raw, reference=reference, return_all=True, **model_params
-    )
+    # if column derivative exists, and not overwrite skip
+    colperturb_deriv_fpath = match_derivative(deriv_path, colperturb_deriv_fname, '.json', verbose=verbose)
+    if colperturb_deriv_fpath is None:
+        colperturb_deriv_fpath = deriv_path / colperturb_deriv_fname
+    if colperturb_deriv_fpath.exists() and not overwrite:
+        cperturb_deriv = read_derivative_npy(colperturb_deriv_fpath)
+    else:
+        cperturb_deriv, cdeltavecs_deriv = state_perturbation_derivative(
+            state_deriv, n_jobs=-1, **perturbation_params)
 
-    # write results to
-    result_sidecars = write_result_fragility(
-        A_mats,
-        delta_vecs_arr,
-        result=result,
-        deriv_basename=deriv_basename,
-        deriv_path=deriv_path,
-        verbose=verbose,
-    )
-    fig_basename = deriv_basename
+        coldeltavecs_deriv_fpath = _add_desc_to_bids_fname(
+            colperturb_deriv_fpath, DERIVATIVETYPES.COLDELTAVECS_MATRIX.value)
+        cdeltavecs_deriv.save(coldeltavecs_deriv_fpath, overwrite=overwrite)
 
-    result.normalize()
-    # create the heatmap
-    plot_result_heatmap(
-        result=result,
-        fig_basename=fig_basename,
-        figures_path=figures_path,
-        excel_fpath=excel_fpath
-    )
+    # if row
+    rowperturb_deriv_fpath = match_derivative(deriv_path, rowperturb_deriv_fname, '.json', verbose=verbose)
+    if rowperturb_deriv_fpath is None:
+        rowperturb_deriv_fpath = deriv_path / rowperturb_deriv_fname
+    if rowperturb_deriv_fpath.exists() and not overwrite:
+        rperturb_deriv = read_derivative_npy(rowperturb_deriv_fpath)
+    else:
+        perturbation_params['perturb_type'] = 'R'
+        rperturb_deriv, rdeltavecs_deriv = state_perturbation_derivative(
+            state_deriv, n_jobs=-1, **perturbation_params)
+        rperturb_deriv.save(rowperturb_deriv_fpath, overwrite=overwrite)
 
-    if perturb_row:
-        perturb_type = 'R'
-        radius = 1.5
-        metadata = result.get_metadata()
-        deriv_basename = bids_path.basename
-        deriv_basename = _add_desc_to_bids_fname(
-            deriv_basename, description=DERIVATIVETYPES.ROWPERTURB_MATRIX.value, verbose=False
+        # rowperturb_deriv_fpath
+        rowdeltavecs_deriv_fpath = _add_desc_to_bids_fname(
+            rowperturb_deriv_fpath, DERIVATIVETYPES.ROWDELTAVECS_MATRIX.value)
+        rdeltavecs_deriv.save(rowdeltavecs_deriv_fpath, overwrite=overwrite)
+
+    # plot heatmaps
+    if figures_path is not None:
+        figures_path.mkdir(exist_ok=True, parents=True)
+
+        # normalize derivative
+        cperturb_deriv.normalize()
+        rperturb_deriv.normalize()
+
+        # read clinical data sheet
+        if excel_fpath is not None:
+            # read in the dataframe of clinical datasheet
+            pat_dict = read_clinical_excel(excel_fpath, subject=subject)
+            # extract the SOZ channels
+            soz_chs = pat_dict[ClinicalContactColumns.SOZ_CONTACTS.value]
+            epz_chs = pat_dict[ClinicalContactColumns.SPREAD_CONTACTS.value]
+            rz_chs = pat_dict[ClinicalContactColumns.RESECTED_CONTACTS.value]
+        else:
+            soz_chs = None
+
+        cfig_basename = colperturb_deriv_fpath.with_suffix(".pdf").name
+        rfig_basename = rowperturb_deriv_fpath.with_suffix(".pdf").name
+
+        # plot
+        cperturb_deriv.plot_heatmap(
+            soz_chs=soz_chs,
+            cbarlabel="Fragility",
+            cmap="turbo",
+            # soz_chs=soz_chs,
+            # figsize=(10, 8),
+            # fontsize=12,
+            # vmax=0.8,
+            title=fig_basename,
+            figure_fpath=(figures_path / cfig_basename),
         )
-        deriv_fpath = deriv_path / deriv_basename
-
-        pert_mats, delta_vecs_arr = state_perturbation_array(A_mats,
-                                                             radius=radius,
-                                                             perturb_type=perturb_type,
-                                                             n_jobs=-1)
-
-        # write results to
-        pert_sidecar = write_result_array(
-            pert_mats,
-            metadata=metadata,
-            deriv_fpath=deriv_fpath,
-            verbose=verbose,
-        )
-        result = Result(pert_mats, raw.info, metadata=metadata)
-
-        # deriv_fname = deriv_path / bids_path.basename
-        fig_basename = deriv_basename
-        # result = read_result_eztrack(deriv_fname=deriv_fname,
-        #                              description='rowperturbmatrix',
-        #                              normalize=False)
-
-        result.normalize()
-        # create the heatmap
-        plot_result_heatmap(
-            result=result,
-            fig_basename=fig_basename,
-            figures_path=figures_path,
-            excel_fpath=excel_fpath,
-            show_soz=True
+        rperturb_deriv.plot_heatmap(
+            soz_chs=soz_chs,
+            cbarlabel="Fragility",
+            cmap="turbo",
+            # soz_chs=soz_chs,
+            # figsize=(10, 8),
+            # fontsize=12,
+            # vmax=0.8,
+            title=fig_basename,
+            figure_fpath=(figures_path / rfig_basename),
         )
 
 
@@ -323,7 +271,7 @@ if __name__ == "__main__":
         # bids root to write BIDS data to
         # the root of the BIDS dataset
         root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-        output_dir = root / 'derivatives' / 'interictal'
+        output_dir = root / 'derivatives' / 'interictal' / 'originalsampling'
 
         figures_dir = output_dir / 'figures'
 
@@ -347,7 +295,7 @@ if __name__ == "__main__":
     SUBJECTS = [
         # 'pt1',
         # 'pt2', 'pt3',
-        'pt6',
+        # 'pt6',
         # 'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
         # 'jh103', 'jh105',  # JHH
         # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
@@ -361,6 +309,8 @@ if __name__ == "__main__":
     acquisition = "ecog"  # or SEEG
     extension = ".vhdr"
 
+    # define which entities to ignore
+    ignore_tasks = ['ictal']
     if acquisition == 'ecog':
         ignore_acquisitions = ['seeg']
     elif acquisition == 'seeg':
@@ -368,19 +318,17 @@ if __name__ == "__main__":
 
     reference = 'monopolar'
     sfreq = None  # either resample or don't
+    overwrite = False
+    verbose = True
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
 
     for subject in all_subjects:
-        if subject not in SUBJECTS:
-            continue
+        # if subject not in SUBJECTS:
+        #     continue
         ignore_subs = [sub for sub in all_subjects if sub != subject]
-        all_tasks = get_entity_vals(root, "task", ignore_subjects=ignore_subs)
-        ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
 
-        print(f"Analyzing {task} task for {subject}.")
-        ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
         runs = get_entity_vals(
             root, 'run', ignore_subjects=ignore_subs,
             ignore_tasks=ignore_tasks,
@@ -403,10 +351,20 @@ if __name__ == "__main__":
             )
             print(f"Analyzing {bids_path}")
 
-            run_fragility_analysis(bids_path, reference=reference,
-                                   resample_sfreq=sfreq,
-                                   deriv_path=output_dir,
-                                   figures_path=figures_dir,
-                                   excel_fpath=excel_fpath,
-                                   overwrite=True
-                                   )
+            state_deriv_fname = _add_desc_to_bids_fname(
+                bids_path.basename, DERIVATIVETYPES.STATE_MATRIX.value)
+            colperturb_deriv_fname = _add_desc_to_bids_fname(
+                bids_path.basename, DERIVATIVETYPES.COLPERTURB_MATRIX.value)
+            rowperturb_deriv_fname = _add_desc_to_bids_fname(
+                bids_path.basename, DERIVATIVETYPES.ROWPERTURB_MATRIX.value)
+            run_analysis(
+                bids_path, state_deriv_fname, colperturb_deriv_fname, rowperturb_deriv_fname,
+                reference=reference, resample_sfreq=sfreq, deriv_root=output_dir,
+                figures_path=figures_dir, excel_fpath=excel_fpath, verbose=verbose, overwrite=overwrite)
+            # run_fragility_analysis(bids_path, reference=reference,
+            #                        resample_sfreq=sfreq,
+            #                        deriv_path=output_dir,
+            #                        figures_path=figures_dir,
+            #                        excel_fpath=excel_fpath,
+            #                        overwrite=True
+            #                        )
