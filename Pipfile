@@ -24,24 +24,23 @@ jupyterlab = "*"
 vtk = "*"
 pyvista = "*"
 pyqt5 = "*"
-mne = {file = "https://api.github.com/repos/mne-tools/mne-python/zipball/master"}
 
 [packages]
 numpy = "*"
 scipy = "*"
 pandas = "*"
-mne = ">=0.21"
-mne-bids = {file = "https://api.github.com/repos/mne-tools/mne-bids/zipball/master"}
+mne = ">=0.22"
+mne-bids = ">=0.7"
 pybv = ">=0.3"
 pybids = "*"
 joblib = ">=0.15"
 matplotlib = "*"
 seaborn = "*"
 black = "*"
-zipp = {editable = true, path = "/Users/adam2392/Documents/eztrack"}
 pingouin = "*"
 mlxtend = "*"
 dabest = "*"
+eztrack = {editable = true, path = "/home/adam2392/Documents/eztrack"}
 
 [requires]
 python_version = "3.8"
