@@ -99,7 +99,7 @@ def main():
 
     # path directories
     root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-    root = Path('/home/adam2392/hdd2/Dropbox/epilepsy_bids')
+    # root = Path('/home/adam2392/hdd2/Dropbox/epilepsy_bids')
     deriv_root = root / "derivatives"
     deriv_chain = Path("interictal") / sampling_strategy / "fragility" / reference
 
