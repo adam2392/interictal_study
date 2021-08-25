@@ -1,0 +1,6 @@
+"Sink index defined as: (sqrt(2)-eDist_sink)./sqrt(2) 
+ Source index = (sqrt(2)-eDist_source)./sqrt(2) 
+ Source influence = Sum_j(A_ij*source_ind) 
+ Sink connectivity = Sum_j(A_ij*sink_ind) 
+ Source-sink index = sink_ind*source_infl*sink_conn 
+"
