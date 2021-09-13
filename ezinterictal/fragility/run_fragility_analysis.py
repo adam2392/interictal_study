@@ -200,7 +200,7 @@ def run_analysis(
     bids_path,
     state_deriv_fname,
     colperturb_deriv_fname,
-    rowperturb_deriv_fname,
+    # rowperturb_deriv_fname,
     reference="monopolar",
     resample_sfreq=None,
     deriv_root=None,
@@ -230,15 +230,15 @@ def run_analysis(
     )
 
     sysid_params = {
-        "winsize": 250,
-        "stepsize": 125,
+        "winsize": 500,
+        "stepsize": 250,
         "l2penalty": 0,
         "method_to_use": "pinv",
     }
     perturbation_params = {
         "radius": 1.5,
         "perturb_type": "C",
-        "perturbation_strategy": "univariate",
+        # "perturbation_strategy": "univariate",
     }
 
     # if state derivative exists, and not overwrite skip
@@ -248,11 +248,13 @@ def run_analysis(
     if state_deriv_fpath is None:
         state_deriv_fpath = deriv_path / state_deriv_fname
     if state_deriv_fpath.exists() and not overwrite:
+        print(f"Found state deriv fpath: {state_deriv_fpath}")
         state_deriv = read_derivative_npy(state_deriv_fpath)
     else:
         state_deriv = state_lds_derivative(
             raw, reference=reference, n_jobs=-1, **sysid_params
         )
+        state_deriv.save(state_deriv_fpath, overwrite=overwrite)
 
     # if column derivative exists, and not overwrite skip
     colperturb_deriv_fpath = match_derivative(
@@ -261,45 +263,49 @@ def run_analysis(
     if colperturb_deriv_fpath is None:
         colperturb_deriv_fpath = deriv_path / colperturb_deriv_fname
     if colperturb_deriv_fpath.exists() and not overwrite:
+        print(f"Found col deriv fpath: {colperturb_deriv_fpath}")
         cperturb_deriv = read_derivative_npy(colperturb_deriv_fpath)
     else:
         cperturb_deriv, cdeltavecs_deriv = state_perturbation_derivative(
             state_deriv, n_jobs=-1, **perturbation_params
         )
+        cperturb_deriv.save(colperturb_deriv_fpath, overwrite=overwrite)
 
         coldeltavecs_deriv_fpath = _add_desc_to_bids_fname(
-            colperturb_deriv_fpath, DERIVATIVETYPES.COLDELTAVECS_MATRIX.value
+            colperturb_deriv_fpath, DERIVATIVETYPES.DELTAVECS_MATRIX.value
         )
         cdeltavecs_deriv.save(coldeltavecs_deriv_fpath, overwrite=overwrite)
 
     # if row
-    rowperturb_deriv_fpath = match_derivative(
-        deriv_path, rowperturb_deriv_fname, ".json", verbose=verbose
-    )
-    if rowperturb_deriv_fpath is None:
-        rowperturb_deriv_fpath = deriv_path / rowperturb_deriv_fname
-    if rowperturb_deriv_fpath.exists() and not overwrite:
-        rperturb_deriv = read_derivative_npy(rowperturb_deriv_fpath)
-    else:
-        perturbation_params["perturb_type"] = "R"
-        rperturb_deriv, rdeltavecs_deriv = state_perturbation_derivative(
-            state_deriv, n_jobs=-1, **perturbation_params
-        )
-        rperturb_deriv.save(rowperturb_deriv_fpath, overwrite=overwrite)
+    # rowperturb_deriv_fpath = match_derivative(
+    #     deriv_path, rowperturb_deriv_fname, ".json", verbose=verbose
+    # )
+    # if rowperturb_deriv_fpath is None:
+    #     rowperturb_deriv_fpath = deriv_path / rowperturb_deriv_fname
+    # if rowperturb_deriv_fpath.exists() and not overwrite:
+    #     rperturb_deriv = read_derivative_npy(rowperturb_deriv_fpath)
+    # else:
+    #     perturbation_params["perturb_type"] = "R"
+    #     rperturb_deriv, rdeltavecs_deriv = state_perturbation_derivative(
+    #         state_deriv, n_jobs=-1, **perturbation_params
+    #     )
+    #     rperturb_deriv.save(rowperturb_deriv_fpath, overwrite=overwrite)
 
-        # rowperturb_deriv_fpath
-        rowdeltavecs_deriv_fpath = _add_desc_to_bids_fname(
-            rowperturb_deriv_fpath, DERIVATIVETYPES.ROWDELTAVECS_MATRIX.value
-        )
-        rdeltavecs_deriv.save(rowdeltavecs_deriv_fpath, overwrite=overwrite)
+    #     # rowperturb_deriv_fpath
+    #     rowdeltavecs_deriv_fpath = _add_desc_to_bids_fname(
+    #         rowperturb_deriv_fpath, DERIVATIVETYPES.ROWDELTAVECS_MATRIX.value
+    #     )
+    #     rdeltavecs_deriv.save(rowdeltavecs_deriv_fpath, overwrite=overwrite)
 
     # plot heatmaps
     if figures_path is not None:
         figures_path.mkdir(exist_ok=True, parents=True)
 
+        cperturb_deriv.load_data()
+
         # normalize derivative
         cperturb_deriv.normalize()
-        rperturb_deriv.normalize()
+        # rperturb_deriv.normalize()
 
         # read clinical data sheet
         if excel_fpath is not None:
@@ -313,7 +319,7 @@ def run_analysis(
             soz_chs = None
 
         cfig_basename = colperturb_deriv_fpath.with_suffix(".pdf").name
-        rfig_basename = rowperturb_deriv_fpath.with_suffix(".pdf").name
+        # rfig_basename = rowperturb_deriv_fpath.with_suffix(".pdf").name
 
         # plot
         cperturb_deriv.plot_heatmap(
@@ -327,94 +333,56 @@ def run_analysis(
             title=fig_basename,
             figure_fpath=(figures_path / cfig_basename),
         )
-        rperturb_deriv.plot_heatmap(
-            soz_chs=soz_chs,
-            cbarlabel="Fragility",
-            cmap="turbo",
-            # soz_chs=soz_chs,
-            # figsize=(10, 8),
-            # fontsize=12,
-            # vmax=0.8,
-            title=fig_basename,
-            figure_fpath=(figures_path / rfig_basename),
-        )
+        # rperturb_deriv.plot_heatmap(
+        #     soz_chs=soz_chs,
+        #     cbarlabel="Fragility",
+        #     cmap="turbo",
+        #     # soz_chs=soz_chs,
+        #     # figsize=(10, 8),
+        #     # fontsize=12,
+        #     # vmax=0.8,
+        #     title=fig_basename,
+        #     figure_fpath=(figures_path / rfig_basename),
+        # )
 
 
 if __name__ == "__main__":
-    WORKSTATION = "lab"
+    # bids root to write BIDS data to
+    # the root of the BIDS dataset
+    root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
+    output_dir = root / "derivatives" / "originalsampling"
 
-    if WORKSTATION == "home":
-        # bids root to write BIDS data to
-        # the root of the BIDS dataset
-        root = Path("/Users/adam2392/Dropbox/epilepsy_bids/")
-        output_dir = root / "derivatives" / "interictal" / "originalsampling"
+    figures_dir = output_dir / "figures"
 
-        figures_dir = output_dir / "figures"
-
-        # path to excel layout file - would be changed to the datasheet locally
-        excel_fpath = Path(
-            "/Users/adam2392/Dropbox/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
-        )
-    elif WORKSTATION == "lab":
-        root = Path("/home/adam2392/hdd/epilepsy_bids/")
-        excel_fpath = Path(
-            "/home/adam2392/hdd/epilepsy_bids/sourcedata/organized_clinical_datasheet_raw.xlsx"
-        )
-
-        # output directory
-        output_dir = (
-            Path("/home/adam2392/hdd/epilepsy_bids") / "derivatives" / "interictal"
-        )
-
-        # figures directory
-        figures_dir = output_dir / "figures"
+    # path to excel layout file - would be changed to the datasheet locally
+    excel_fpath = root / "sourcedata/ieeg_database_all.xlsx"
 
     # define BIDS entities
-    SUBJECTS = [
-        # 'pt1',
-        # 'pt2', 'pt3',
-        # 'pt6',
-        # 'pt7', 'pt8', 'pt9', 'pt11', 'pt12', 'pt13', 'pt14', 'pt15', # NIH
-        # 'jh103', 'jh105',  # JHH
-        # 'umf001', 'umf002', 'umf003', 'umf004', 'umf005',  # UMF
-        # 'la00', 'la01', 'la02', 'la03', 'la04', 'la05', 'la06',
-        # 'la07'
-    ]
+    SUBJECTS = []
 
-    session = "presurgery"  # only one session
-    task = "interictal"
+    session = "extraoperative"  # only one session
+    # task = "interictal"
     datatype = "ieeg"
-    acquisition = "seeg"  # or SEEG
-    extension = ".vhdr"
+    suffix = "ieeg"
+    extension = ".edf"
 
-    # define which entities to ignore
-    ignore_tasks = ["ictal"]
-    if acquisition == "ecog":
-        ignore_acquisitions = ["seeg"]
-    elif acquisition == "seeg":
-        ignore_acquisitions = ["ecog"]
-
-    reference = "average"
+    reference = "monopolar"
     sfreq = None  # either resample or don't
     overwrite = False
     verbose = True
+    task = "interictal"
 
     # get the runs for this subject
-    all_subjects = get_entity_vals(
-        root, "subject", ignore_acquisitions=ignore_acquisitions
-    )
+    all_subjects = get_entity_vals(root, "subject")
 
     for subject in all_subjects:
         # if subject not in SUBJECTS:
         #     continue
-        if subject == "pt9":
-            continue
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(
             root,
             "task",
             ignore_subjects=ignore_subs,
-            ignore_acquisitions=ignore_acquisitions,
         )
         ignore_tasks = [tsk for tsk in all_tasks if tsk != task]
 
@@ -423,7 +391,6 @@ if __name__ == "__main__":
             "run",
             ignore_subjects=ignore_subs,
             ignore_tasks=ignore_tasks,
-            ignore_acquisitions=ignore_acquisitions,
         )
         print(f"Found {runs} runs for {task} task.")
 
@@ -435,32 +402,30 @@ if __name__ == "__main__":
                 task=task,
                 run=run,
                 datatype=datatype,
-                acquisition=acquisition,
-                suffix=datatype,
                 root=root,
                 extension=extension,
+                suffix=datatype,
             )
             print(f"Analyzing {bids_path}")
 
+            deriv_bids_path = bids_path.copy().update(check=False, extension=".npy")
             state_deriv_fname = _add_desc_to_bids_fname(
-                bids_path.basename, DERIVATIVETYPES.STATE_MATRIX.value
+                deriv_bids_path.basename, DERIVATIVETYPES.STATE_MATRIX.value
             )
             colperturb_deriv_fname = _add_desc_to_bids_fname(
-                bids_path.basename, DERIVATIVETYPES.COLPERTURB_MATRIX.value
+                deriv_bids_path.basename, DERIVATIVETYPES.COLPERTURB_MATRIX.value
             )
-            rowperturb_deriv_fname = _add_desc_to_bids_fname(
-                bids_path.basename, DERIVATIVETYPES.ROWPERTURB_MATRIX.value
-            )
+            # rowperturb_deriv_fname = _add_desc_to_bids_fname(
+            #     bids_path.basename, DERIVATIVETYPES.ROWPERTURB_MATRIX.value
+            # )
             run_analysis(
                 bids_path,
                 state_deriv_fname,
                 colperturb_deriv_fname,
-                rowperturb_deriv_fname,
+                # rowperturb_deriv_fname,
                 reference=reference,
                 resample_sfreq=sfreq,
                 deriv_root=output_dir,
-                figures_path=figures_dir,
-                excel_fpath=excel_fpath,
                 verbose=verbose,
                 overwrite=overwrite,
             )

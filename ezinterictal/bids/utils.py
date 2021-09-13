@@ -218,6 +218,7 @@ def _channel_text_scrub(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
     # apply channel scrubbing
     raw = raw.rename_channels(lambda x: x.upper())
 
+    raw = raw.rename_channels(lambda x: x.split("-")[0])
     # encapsulated into a try statement in case there are blank channel names
     # after scrubbing these characters
     try:
@@ -229,7 +230,7 @@ def _channel_text_scrub(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
         )  # remove dashes from channel names - does this not handle pt11?
     except ValueError as e:
         print(f"Ran into an issue when debugging: {raw.info}")
-        raise ValueError(e)
+        # raise ValueError(e)
 
     raw = raw.rename_channels(lambda x: x.replace(" ", ""))
     raw = raw.rename_channels(
