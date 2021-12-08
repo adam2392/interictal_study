@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore")
 
 from mne.io import read_raw_edf
 from mne_bids.path import BIDSPath, get_entity_vals
-from mne_bids import get_anonymization_daysback, write_raw_bids
+from mne_bids import get_anonymization_daysback, write_raw_bids, anonymize_dataset
 
 from eztrack.preprocess.excel import (
     add_subject_metadata_from_excel,
@@ -94,31 +94,31 @@ def main():
     root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
     source_dir = root / "sourcedata"
     excel_fpath = source_dir / "ieeg_database_all.xlsx"
-    source_dir = Path("/Users/adam2392/OneDrive - Johns Hopkins/neuropace/sourcedata/")
+    # source_dir = Path("/Users/adam2392/OneDrive - Johns Hopkins/neuropace/sourcedata/")
 
     task = "interictal"
     session = "extraoperative"
     datatype = "ieeg"
     suffix = "ieeg"
-    extension = ".edf"
+    extension = ".EDF"
 
     ch_type = "seeg"
 
     # do 'kumc' separately
     fpaths = []
     for site in [
-        "umfrns"
+        # "rns"
         # 'jhu',
         # 'nih',
         # 'cclinic',
         # 'umf',
         # 'upmc',
-        # 'kumc'
+        'kumc'
     ]:
         site_dir = source_dir / site
 
         # get all edf files
-        _fpaths = natsorted(list(site_dir.rglob("*interictal*.edf")))
+        _fpaths = natsorted(list(site_dir.rglob(f"*Interictal*{extension}")))
         fpaths.extend(_fpaths)
 
         if site == "jhu":
@@ -129,12 +129,12 @@ def main():
             splitter = "."
         elif site == "cclinic":
             splitter = "_"
-        elif site == "umfrns":
+        elif site == "rns":
             splitter = "_"
 
         # subjects = [f.split(splitter)[0] for f in _fpaths]
 
-        print(f"Looking at {site}")
+        print(f"Looking at {site_dir}")
         # now analyze that file
         for fpath in _fpaths:
             if site == "kumc":
@@ -142,8 +142,8 @@ def main():
                 subject = "kumc" + old_subject.split("pt")[1]
             elif site == "umf":
                 subject = fpath.parent.name
-            elif site == "umfrns":
-                subject = "rns" + fpath.name.split(splitter)[1]
+            elif site == "rns":
+                subject = "rns" + fpath.parent.name # fpath.name.split(splitter)[1]
             else:
                 subject = fpath.name.split(splitter)[0]
 
@@ -167,13 +167,15 @@ def main():
                 root=root,
                 suffix=suffix,
                 datatype=datatype,
-                extension=extension,
+                extension=extension.lower(),
             )
             print(f"\n\nConverting {fpath} to {bids_path}...\n\n")
             if len(bids_path.match()) > 0:
                 print("\n\nSkipping this file... ")
                 bids_path.run = "02"
                 continue
+
+            # assert False
 
             # run main bids conversion
             bids_fname = write_edf_to_bids(
@@ -199,13 +201,55 @@ def main_fix_chs():
 
     subjects = get_entity_vals(root, "subject")
     for subject in subjects:
-        # if 'rns' not in subject:
-        #     continue
+        if any(char in subject for char in [
+            # 'NIH', 
+            # 'PY', 'nl', 'la', 'tvb', 'jh',
+            # 'kumc', 
+            # 'umf', 'rns'
+            ]):
+            continue
         annotate_chs_from_excel(
             root, subject, excel_fpath=excel_fpath, extension=".edf"
         )
 
+def main_anonymize():
+    root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal_nonanon/")
+
+    anon_root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal_anon/")
+
+    subject_mapping = {
+        'rns002': 'rns002',
+        'rns003': 'rns003',
+        'rns004': 'rns004',
+        'rns005': 'rns005',
+        'rns006': 'rns006',
+        'rns009': 'rns009',
+        'rns011': 'rns011',
+        'rns013': 'rns013',
+        'rns014': 'rns014',
+        'rns015': 'rns015',
+
+    }
+    anonymize_dataset(root, anon_root, subject_mapping=subject_mapping)
+
+    root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
+    source_dir = root / "sourcedata"
+    excel_fpath = source_dir / "ieeg_database_all.xlsx"
+    subjects = get_entity_vals(root, "subject")
+    for subject in subjects:
+        if any(char in subject for char in [
+            'NIH', 
+            'PY', 'nl', 'la', 'tvb', 'jh',
+            'kumc', 
+            'umf', 
+            # 'rns'
+            ]):
+            continue
+        annotate_chs_from_excel(
+            anon_root, subject, excel_fpath=excel_fpath, extension=".edf"
+        )
 
 if __name__ == "__main__":
     # main()
-    main_fix_chs()
+    # main_fix_chs()
+    main_anonymize()

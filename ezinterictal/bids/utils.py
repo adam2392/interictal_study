@@ -40,7 +40,7 @@ def _replace_ext(fname, ext, verbose=False):
     if verbose:
         print(f"Trying to replace {fname} with extension {ext}")
 
-    fname, _ext = _parse_ext(fname, verbose=verbose)
+    fname, _ext = _parse_ext(fname)
     if not ext.startswith("."):
         ext = "." + ext
 
@@ -217,7 +217,7 @@ def _channel_text_scrub(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
 
     # apply channel scrubbing
     raw = raw.rename_channels(lambda x: x.upper())
-
+    raw = raw.rename_channels(lambda x: x.replace(" ", ""))
     raw = raw.rename_channels(lambda x: x.split("-")[0])
     # encapsulated into a try statement in case there are blank channel names
     # after scrubbing these characters
