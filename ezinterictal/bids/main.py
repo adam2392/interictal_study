@@ -74,7 +74,7 @@ def write_edf_to_bids(edf_fpath, bids_path, line_freq: int = 60, ch_type=None) -
     # Get acceptable range of days back and pick random one
     daysback_min, daysback_max = get_anonymization_daysback(raw)
     daysback = random.randrange(daysback_min, daysback_max)
-    anonymize = dict(daysback=daysback, keep_his=False)
+    anonymize = dict(daysback=daysback, keep_his=False, keep_source=True)
 
     # write to BIDS based on path
     output_bids_path = write_raw_bids(
@@ -100,7 +100,7 @@ def main():
     session = "extraoperative"
     datatype = "ieeg"
     suffix = "ieeg"
-    extension = ".EDF"
+    extension = ".edf"
 
     ch_type = "seeg"
 
@@ -112,13 +112,13 @@ def main():
         # 'nih',
         # 'cclinic',
         # 'umf',
-        # 'upmc',
-        'kumc'
+        'upmc',
+        # 'kumc'
     ]:
         site_dir = source_dir / site
 
         # get all edf files
-        _fpaths = natsorted(list(site_dir.rglob(f"*Interictal*{extension}")))
+        _fpaths = natsorted(list(site_dir.rglob(f"*{extension}")))
         fpaths.extend(_fpaths)
 
         if site == "jhu":
@@ -183,15 +183,12 @@ def main():
             )
 
             # append scans original filenames
-            append_original_fname_to_scans(fpath.name, root, bids_fname.basename)
+            # append_original_fname_to_scans(fpath.name, root, bids_fname.basename)
 
             # add subject specific metadata
             add_subject_metadata_from_excel(root, subject, excel_fpath=excel_fpath)
             # annotate_chs_from_excel(root, subject, excel_fpath=excel_fpath)
 
-
-def _get_nih_files():
-    pass
 
 
 def main_fix_chs():
@@ -202,10 +199,10 @@ def main_fix_chs():
     subjects = get_entity_vals(root, "subject")
     for subject in subjects:
         if any(char in subject for char in [
-            # 'NIH', 
-            # 'PY', 'nl', 'la', 'tvb', 'jh',
-            # 'kumc', 
-            # 'umf', 'rns'
+            'NIH', 
+            'PY', 'nl', 'la', 'tvb', 'jh',
+            'kumc', 
+            'umf', 'rns'
             ]):
             continue
         annotate_chs_from_excel(
@@ -242,7 +239,7 @@ def main_anonymize():
             'PY', 'nl', 'la', 'tvb', 'jh',
             'kumc', 
             'umf', 
-            # 'rns'
+            'rns'
             ]):
             continue
         annotate_chs_from_excel(
@@ -251,5 +248,5 @@ def main_anonymize():
 
 if __name__ == "__main__":
     # main()
-    # main_fix_chs()
-    main_anonymize()
+    main_fix_chs()
+    # main_anonymize()

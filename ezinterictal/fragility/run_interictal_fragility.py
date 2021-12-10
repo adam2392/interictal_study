@@ -57,6 +57,7 @@ def run_fragility_analysis(
         "method_to_use": "pinv",
         "perturb_type": "C",
         'normalize': False,
+        'l2penalty': 1e-6
     }
 
     # run heatmap
@@ -115,6 +116,7 @@ def main():
     # bids root to write BIDS data to
     # the root of the BIDS dataset
     root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
+    # root = Path('/home/adam2392/hdd3/Dropbox/epilepsy_interictal')
     output_dir = root / "derivatives"
 
     figures_dir = output_dir / "figures"
@@ -130,6 +132,8 @@ def main():
     reference = "monopolar"
     overwrite = False
 
+    l2_penalty = 1e-6
+
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
 
@@ -141,14 +145,28 @@ def main():
             # 'jh',
             # 'pt', 'umf', 
             # 'upmc',
-            'NIH', 
+            # 'NIH', 
             # 'PY', 
             # 'nl', 'la', 'tvb', 
             # 'rns',
             #  'kumc', 
-             'upmc'
+            #  'upmc'
          ]):
             continue
+
+        deriv_chain = (
+                Path("originalsampling") / "fragility" / 'win500' / reference / f'l2-{l2_penalty}' / f"sub-{subject}"
+            )
+        deriv_path = output_dir / deriv_chain
+        heatmap_path = (
+                figures_dir
+                / "originalsampling"
+                / 'win500'
+                / f'l2-{l2_penalty}'
+                / "fragility"
+                / reference
+            )
+
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(
             root,
@@ -180,10 +198,6 @@ def main():
             print(f"Analyzing {bids_path}")
 
             # run fragility analysis
-            deriv_chain = (
-                Path("originalsampling") / "fragility" / 'win500' / reference / f"sub-{subject}"
-            )
-            deriv_path = output_dir / deriv_chain
             state_deriv_fpath = bids_path.copy().update(
                 check=False,
                 suffix=f"desc-{DERIVATIVETYPES.STATE_MATRIX.value}_ieeg",
@@ -233,14 +247,6 @@ def main():
             )
 
             # save heatmaps
-            heatmap_path = (
-                figures_dir
-                / "originalsampling"
-                / 'win500'
-                / "fragility"
-                / reference
-                / 'normalized'
-            )
             heatmap_path.mkdir(exist_ok=True, parents=True)
             plot_heatmap(
                 subject,
@@ -289,6 +295,18 @@ def main_viz():
         #     #  'upmc'
         #  ]):
         #     continue
+        deriv_chain = (
+            Path("originalsampling") / 'win500' / "fragility" / reference / f"sub-{subject}"
+        )
+        deriv_path = output_dir / deriv_chain
+        heatmap_path = (
+                figures_dir
+                / "originalsampling"
+                / 'win500'
+                / "fragility"
+                / reference
+            )
+
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(
             root,
@@ -320,10 +338,6 @@ def main_viz():
             print(f"Analyzing {bids_path}")
 
             # run fragility analysis
-            deriv_chain = (
-                Path("originalsampling") / "fragility" / reference / f"sub-{subject}"
-            )
-            deriv_path = output_dir / deriv_chain
             state_deriv_fpath = bids_path.copy().update(
                 check=False,
                 suffix=f"desc-{DERIVATIVETYPES.STATE_MATRIX.value}_ieeg",
@@ -354,12 +368,6 @@ def main_viz():
             perturb_deriv.load_data()
 
             # save heatmaps
-            heatmap_path = (
-                figures_dir
-                / "originalsampling"
-                / "fragility"
-                / reference
-            )
             print(f'Plotting heatmap at {heatmap_path}')
             heatmap_path.mkdir(exist_ok=True, parents=True)
             plot_heatmap(
