@@ -57,7 +57,7 @@ def run_fragility_analysis(
         "method_to_use": "pinv",
         "perturb_type": "C",
         'normalize': False,
-        'l2penalty': 1e-6
+        'l2penalty': 1e-7
     }
 
     # run heatmap
@@ -132,7 +132,7 @@ def main():
     reference = "monopolar"
     overwrite = False
 
-    l2_penalty = 1e-6
+    l2_penalty = 1e-7
 
     # get the runs for this subject
     all_subjects = get_entity_vals(root, "subject")
@@ -243,7 +243,7 @@ def main():
                 colperturb_deriv_fpath=colperturb_deriv_fpath,
                 coldeltavecs_deriv_fpath=coldeltavecs_deriv_fpath,
                 reference=reference,
-                overwrite=overwrite
+                overwrite=overwrite,
             )
 
             # save heatmaps
