@@ -139,7 +139,7 @@ def main():
     datatype = "ieeg"
     suffix = "ieeg"
     extension = ".edf"
-    reference = ""
+    reference = "average"
     overwrite = False
 
     l2_penalty = 1e-7
