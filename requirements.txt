@@ -32,8 +32,6 @@ docutils==0.17.1
 EDFlib-Python==1.0.2
 entrypoints==0.3
 et-xmlfile==1.1.0
--e git+git@github.com:adam2392/interictal_study.git@cea32ac64f0457a2c527f32def03d1518e4615c1#egg=ezinterictal
--e git+git@bitbucket.org:neurologicsolutions/eztrack.git@c4d709700f43948af7d9a7c612c06b35b665203f#egg=eztrack
 hyperlink==21.0.0
 idna==3.2
 imageio==2.9.0

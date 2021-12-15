@@ -17,14 +17,16 @@ from eztrack.utils import ClinicalContactColumns, set_log_level
 from mne_bids import read_raw_bids, BIDSPath, get_entity_vals
 
 from ezinterictal.io.read import load_data
-warnings.filterwarnings('ignore')
-set_log_level('ERROR')
+
+warnings.filterwarnings("ignore")
+set_log_level("ERROR")
+
 
 def load_raw_ieeg_data(bids_path, resample_sfreq=None, verbose=True):
     # load in the data
     raw = read_raw_bids(bids_path, verbose=False)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-    raw = raw.drop_channels(raw.info['bads'])
+    raw = raw.drop_channels(raw.info["bads"])
     raw.load_data()
 
     if resample_sfreq is not None:
@@ -56,8 +58,8 @@ def run_fragility_analysis(
         "radius": 1.5,
         "method_to_use": "pinv",
         "perturb_type": "C",
-        'normalize': False,
-        'l2penalty': 1e-7
+        "normalize": False,
+        "l2penalty": 1e-7,
     }
 
     # run heatmap
@@ -69,15 +71,23 @@ def run_fragility_analysis(
     print(colperturb_deriv_fpath)
     print(state_deriv_fpath)
     print(coldeltavecs_deriv_fpath)
-    perturb_deriv.save(deriv_path / colperturb_deriv_fpath.basename, overwrite=overwrite)
+    perturb_deriv.save(
+        deriv_path / colperturb_deriv_fpath.basename, overwrite=overwrite
+    )
     state_arr_deriv.save(deriv_path / state_deriv_fpath.basename, overwrite=overwrite)
-    delta_vecs_arr_deriv.save(deriv_path / coldeltavecs_deriv_fpath.basename, overwrite=overwrite)
+    delta_vecs_arr_deriv.save(
+        deriv_path / coldeltavecs_deriv_fpath.basename, overwrite=overwrite
+    )
 
     return state_arr_deriv, perturb_deriv, delta_vecs_arr_deriv
 
 
 def plot_heatmap(
-    subject, perturb_deriv, perturb_deriv_fpath, excel_fpath, figures_path,
+    subject,
+    perturb_deriv,
+    perturb_deriv_fpath,
+    excel_fpath,
+    figures_path,
 ):
     # normalize and plot heatmap
     if excel_fpath is not None:
@@ -90,7 +100,7 @@ def plot_heatmap(
 
     perturb_deriv.normalize()
     fig_basename = Path(perturb_deriv_fpath.basename).with_suffix(".pdf")
-    print(f'Saving figure to {figures_path / fig_basename}.')
+    print(f"Saving figure to {figures_path / fig_basename}.")
     perturb_deriv.plot_heatmap(
         cbarlabel="Fragility",
         cmap="turbo",
@@ -102,7 +112,7 @@ def plot_heatmap(
 def _check_channel_count(bids_path, deriv_fpath):
     raw = read_raw_bids(bids_path)
     raw = raw.pick_types(seeg=True, ecog=True, eeg=True, misc=False)
-    raw = raw.drop_channels(raw.info['bads'])
+    raw = raw.drop_channels(raw.info["bads"])
 
     print(deriv_fpath)
     deriv = read_derivative_npy(deriv_fpath)
@@ -112,11 +122,11 @@ def _check_channel_count(bids_path, deriv_fpath):
 
 
 def main():
-    mne.set_log_level('ERROR')
+    mne.set_log_level("ERROR")
     # bids root to write BIDS data to
     # the root of the BIDS dataset
     root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
-    # root = Path('/home/adam2392/hdd3/Dropbox/epilepsy_interictal')
+    root = Path("/home/adam2392/hdd/Dropbox/epilepsy_interictal")
     output_dir = root / "derivatives"
 
     figures_dir = output_dir / "figures"
@@ -129,7 +139,7 @@ def main():
     datatype = "ieeg"
     suffix = "ieeg"
     extension = ".edf"
-    reference = "monopolar"
+    reference = ""
     overwrite = False
 
     l2_penalty = 1e-7
@@ -141,31 +151,39 @@ def main():
     problematic_subs = []
 
     for subject in all_subjects:
-        if any(char in subject for char in [
-            # 'jh',
-            # 'pt', 'umf', 
-            # 'upmc',
-            # 'NIH', 
-            # 'PY', 
-            # 'nl', 'la', 'tvb', 
-            # 'rns',
-            #  'kumc', 
-            #  'upmc'
-         ]):
+        if any(
+            char in subject
+            for char in [
+                # 'jh',
+                # 'pt', 'umf',
+                # 'upmc',
+                # 'NIH',
+                # 'PY',
+                # 'nl', 'la', 'tvb',
+                # 'rns',
+                #  'kumc',
+                #  'upmc'
+            ]
+        ):
             continue
 
         deriv_chain = (
-                Path("originalsampling") / "fragility" / 'win500' / reference / f'l2-{l2_penalty}' / f"sub-{subject}"
-            )
+            Path("originalsampling")
+            / "fragility"
+            / "win500"
+            / reference
+            / f"l2-{l2_penalty}"
+            / f"sub-{subject}"
+        )
         deriv_path = output_dir / deriv_chain
         heatmap_path = (
-                figures_dir
-                / "originalsampling"
-                / 'win500'
-                / f'l2-{l2_penalty}'
-                / "fragility"
-                / reference
-            )
+            figures_dir
+            / "originalsampling"
+            / "win500"
+            / f"l2-{l2_penalty}"
+            / "fragility"
+            / reference
+        )
 
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(
@@ -228,7 +246,7 @@ def main():
                     f"Found derivative for {deriv_basename} already inside {deriv_path}"
                 )
                 continue
-            
+
             # load in the raw data
             raw = load_raw_ieeg_data(bids_path)
 
@@ -253,14 +271,14 @@ def main():
                 perturb_deriv,
                 colperturb_deriv_fpath,
                 excel_fpath,
-                heatmap_path
+                heatmap_path,
             )
-    print('\n\nThese subjects need to be re-run:')
+    print("\n\nThese subjects need to be re-run:")
     print(problematic_subs)
 
 
 def main_viz():
-# bids root to write BIDS data to
+    # bids root to write BIDS data to
     # the root of the BIDS dataset
     root = Path("/Users/adam2392/OneDrive - Johns Hopkins/epilepsy_interictal/")
     output_dir = root / "derivatives"
@@ -275,7 +293,7 @@ def main_viz():
     datatype = "ieeg"
     suffix = "ieeg"
     extension = ".edf"
-    reference = "monopolar"
+    reference = "av"
     overwrite = False
 
     # get the runs for this subject
@@ -286,26 +304,26 @@ def main_viz():
 
     for subject in all_subjects:
         # if any(char in subject for char in [
-        #     'jh','pt', 'umf', 
+        #     'jh','pt', 'umf',
         #     # 'upmc',
-        #     'NIH', 'PY', 
-        #     # 'nl', 'la', 'tvb', 
+        #     'NIH', 'PY',
+        #     # 'nl', 'la', 'tvb',
         #     # # 'rns',
-        #      'kumc', 
+        #      'kumc',
         #     #  'upmc'
         #  ]):
         #     continue
         deriv_chain = (
-            Path("originalsampling") / 'win500' / "fragility" / reference / f"sub-{subject}"
+            Path("originalsampling")
+            / "win500"
+            / "fragility"
+            / reference
+            / f"sub-{subject}"
         )
         deriv_path = output_dir / deriv_chain
         heatmap_path = (
-                figures_dir
-                / "originalsampling"
-                / 'win500'
-                / "fragility"
-                / reference
-            )
+            figures_dir / "originalsampling" / "win500" / "fragility" / reference
+        )
 
         ignore_subs = [sub for sub in all_subjects if sub != subject]
         all_tasks = get_entity_vals(
@@ -346,12 +364,12 @@ def main_viz():
             colperturb_deriv_fpath = bids_path.copy().update(
                 check=False,
                 suffix=f"desc-{DERIVATIVETYPES.COLPERTURB_MATRIX.value}_ieeg",
-                extension=".npy"
+                extension=".npy",
             )
             coldeltavecs_deriv_fpath = bids_path.copy().update(
                 check=False,
                 suffix=f"desc-{DERIVATIVETYPES.DELTAVECS_MATRIX.value}_ieeg",
-                extension=".npy"
+                extension=".npy",
             )
 
             # search for col perturb derivative
@@ -363,12 +381,14 @@ def main_viz():
             #         f"Found derivative for {deriv_basename} already inside {deriv_path}"
             #     )
             #     continue
-            
-            perturb_deriv = read_derivative_npy(deriv_path / colperturb_deriv_fpath.basename, source_check=False)
+
+            perturb_deriv = read_derivative_npy(
+                deriv_path / colperturb_deriv_fpath.basename, source_check=False
+            )
             perturb_deriv.load_data()
 
             # save heatmaps
-            print(f'Plotting heatmap at {heatmap_path}')
+            print(f"Plotting heatmap at {heatmap_path}")
             heatmap_path.mkdir(exist_ok=True, parents=True)
             plot_heatmap(
                 subject,
@@ -377,8 +397,9 @@ def main_viz():
                 excel_fpath,
                 heatmap_path,
             )
-    print('\n\nThese subjects need to be re-run:')
+    print("\n\nThese subjects need to be re-run:")
     print(problematic_subs)
+
 
 if __name__ == "__main__":
     main()
